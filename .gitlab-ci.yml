@@ -1,0 +1,9 @@
+before_script:
+  - apt-get update -qy
+  - apt-get install -qy python3-dev python3-pip
+  - pip3 install -r tests/requirements.txt
+
+coverage:
+  script:
+    - coverage run --source ./ -m unittest tests
+    - coverage report --include=acme_dns_tiny.py
