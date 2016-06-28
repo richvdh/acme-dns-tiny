@@ -1,3 +1,4 @@
 coveralls
-fusepy
 argparse
+configparser
+dnspython3
