@@ -16,7 +16,8 @@ def get_crt(config, log=LOGGER):
 
     # helper function to send DNS dynamic update messages
     def _update_dns(rrset, action):
-        dns_update = dns.update.Update(config["DNS"]["zone"], keyring=keyring, keyalgorithm=dns.name.from_text(config["TSIGKeyring"]["Algorithm"]))
+        algorithm = dns.name.from_text("hmac-{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
+        dns_update = dns.update.Update(config["DNS"]["zone"], keyring=keyring, keyalgorithm=algorithm)
         if action == "add":
             dns_update.add(rrset.name, rrset)
         elif action == "delete":
@@ -114,7 +115,7 @@ def get_crt(config, log=LOGGER):
         if code != 201:
             raise ValueError("Error requesting challenges: {0} {1}".format(code, result))
 
-        # make and install DNS ressource record
+        # make and install DNS resource record
         log.info("Create DNS RR")
         challenge = [c for c in json.loads(result.decode("utf8"))["challenges"] if c["type"] == "dns-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge["token"])
@@ -138,22 +139,24 @@ def get_crt(config, log=LOGGER):
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
 
         # wait for challenge to be verified
-        while True:
-            try:
-                resp = urlopen(challenge["uri"])
-                challenge_status = json.loads(resp.read().decode("utf8"))
-            except IOError as e:
-                raise ValueError("Error checking challenge: {0} {1}".format(
-                    e.code, json.loads(e.read().decode("utf8"))))
-            if challenge_status["status"] == "pending":
-                time.sleep(2)
-            elif challenge_status["status"] == "valid":
-                log.info("{0} verified!".format(domain))
-                _update_dns(dnsrr_set, "delete")
-                break
-            else:
-                raise ValueError("{0} challenge did not pass: {1}".format(
-                    domain, challenge_status))
+        try:
+            while True:
+                try:
+                    resp = urlopen(challenge["uri"])
+                    challenge_status = json.loads(resp.read().decode("utf8"))
+                except IOError as e:
+                    raise ValueError("Error checking challenge: {0} {1}".format(
+                        e.code, json.loads(e.read().decode("utf8"))))
+                if challenge_status["status"] == "pending":
+                    time.sleep(2)
+                elif challenge_status["status"] == "valid":
+                    log.info("{0} verified!".format(domain))
+                    break
+                else:
+                    raise ValueError("{0} challenge did not pass: {1}".format(
+                        domain, challenge_status))
+        finally:
+            _update_dns(dnsrr_set, "delete")
 
     # get the new certificate
     log.info("Signing certificate...")
