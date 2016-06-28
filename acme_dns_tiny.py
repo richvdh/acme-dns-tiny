@@ -13,7 +13,16 @@ def get_crt(config, log=LOGGER):
     # helper function base64 encode for jose spec
     def _b64(b):
         return base64.urlsafe_b64encode(b).decode("utf8").replace("=", "")
-
+    
+    # helper function to run openssl command
+    def _openssl(command, options, communicate=None):
+        openssl = subprocess.Popen(["openssl", command] + options,
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = openssl.communicate(communicate)
+        if openssl.returncode != 0:
+            raise IOError("OpenSSL Error: {0}".format(err))
+        return out
+    
     # helper function to send DNS dynamic update messages
     def _update_dns(rrset, action):
         algorithm = dns.name.from_text("hmac-{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
@@ -32,14 +41,11 @@ def get_crt(config, log=LOGGER):
         protected = copy.deepcopy(header)
         protected["nonce"] = urlopen(config["acmednstiny"]["CAUrl"] + "/directory").headers["Replay-Nonce"]
         protected64 = _b64(json.dumps(protected).encode("utf8"))
-        proc = subprocess.Popen(["openssl", "dgst", "-sha256", "-sign", config["acmednstiny"]["AccountKeyFile"]],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = proc.communicate("{0}.{1}".format(protected64, payload64).encode("utf8"))
-        if proc.returncode != 0:
-            raise IOError("OpenSSL Error: {0}".format(err))
+        signature = _openssl("dgst", ["-sha256", "-sign", config["acmednstiny"]["AccountKeyFile"]],
+                             "{0}.{1}".format(protected64, payload64).encode("utf8"))
         data = json.dumps({
             "header": header, "protected": protected64,
-            "payload": payload64, "signature": _b64(out),
+            "payload": payload64, "signature": _b64(signature),
         })
         try:
             resp = urlopen(url, data.encode("utf8"))
@@ -52,14 +58,10 @@ def get_crt(config, log=LOGGER):
 
     # parse account key to get public key
     log.info("Parsing account key...")
-    proc = subprocess.Popen(["openssl", "rsa", "-in", config["acmednstiny"]["AccountKeyFile"], "-noout", "-text"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = proc.communicate()
-    if proc.returncode != 0:
-        raise IOError("OpenSSL Error: {0}".format(err))
+    accountkey = _openssl("rsa", ["-in", config["acmednstiny"]["AccountKeyFile"], "-noout", "-text"])
     pub_hex, pub_exp = re.search(
         r"modulus:\n\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
-        out.decode("utf8"), re.MULTILINE|re.DOTALL).groups()
+        accountkey.decode("utf8"), re.MULTILINE|re.DOTALL).groups()
     pub_exp = "{0:x}".format(int(pub_exp))
     pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
     header = {
@@ -75,16 +77,12 @@ def get_crt(config, log=LOGGER):
 
     # find domains
     log.info("Parsing CSR...")
-    proc = subprocess.Popen(["openssl", "req", "-in", config["acmednstiny"]["CSRFile"], "-noout", "-text"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = proc.communicate()
-    if proc.returncode != 0:
-        raise IOError("Error loading {0}: {1}".format(config["acmednstiny"]["CSRFile"], err))
+    csr = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-noout", "-text"]).decode("utf8")
     domains = set([])
-    common_name = re.search(r"Subject:.*? CN=([^\s,;/]+)", out.decode("utf8"))
+    common_name = re.search(r"Subject:.*? CN=([^\s,;/]+)", csr)
     if common_name is not None:
         domains.add(common_name.group(1))
-    subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \n +([^\n]+)\n", out.decode("utf8"), re.MULTILINE|re.DOTALL)
+    subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \n +([^\n]+)\n", csr, re.MULTILINE|re.DOTALL)
     if subject_alt_names is not None:
         for san in subject_alt_names.group(1).split(", "):
             if san.startswith("DNS:"):
@@ -160,9 +158,7 @@ def get_crt(config, log=LOGGER):
 
     # get the new certificate
     log.info("Signing certificate...")
-    proc = subprocess.Popen(["openssl", "req", "-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    csr_der, err = proc.communicate()
+    csr_der = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"])
     code, result, headers = _send_signed_request(config["acmednstiny"]["CAUrl"] + "/acme/new-cert", {
         "resource": "new-cert",
         "csr": _b64(csr_der),
