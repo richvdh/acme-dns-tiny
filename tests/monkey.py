@@ -1,17 +1,21 @@
-import os, sys
+import os, sys, configparser
 from tempfile import NamedTemporaryFile
 from subprocess import Popen
-from fuse import FUSE, Operations, LoggingMixIn
-try:
-    from urllib.request import urlopen # Python 3
-except ImportError:
-    from urllib2 import urlopen # Python 2
+from urllib.request import urlopen
 
 # domain with server.py running on it for testing
-DOMAIN = os.getenv("TRAVIS_DOMAIN", "travis-ci.gethttpsforfree.com")
+DOMAIN = os.getenv("GITLABCI_DOMAIN")
+CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
+CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGDELAY", "3")
+DNSHOST = os.getenv("GITLABCI_DNSHOST")
+DNSZONE = os.getenv("GITLABCI_DNSZONE")
+DNSPORT = os.getenv("GITLABCI_DNSPORT", "53")
+TSIGKEYNAME = os.getenv("GITLABCI_TSIGKEYNAME")
+TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
+TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
 
 # generate account and domain keys
-def gen_keys():
+def gen_configs():
     # good account key
     account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
@@ -30,7 +34,7 @@ def gen_keys():
     san_csr = NamedTemporaryFile()
     san_conf = NamedTemporaryFile()
     san_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
-    san_conf.write("\n[SAN]\nsubjectAltName=DNS:{0}\n".format(DOMAIN).encode("utf8"))
+    san_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:www.{0}\n".format(DOMAIN).encode("utf8"))
     san_conf.seek(0)
     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
@@ -38,51 +42,81 @@ def gen_keys():
 
     # invalid domain csr
     invalid_csr = NamedTemporaryFile()
-    Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
-        "-subj", "/CN=\xC3\xA0\xC2\xB2\xC2\xA0_\xC3\xA0\xC2\xB2\xC2\xA0.com", "-out", invalid_csr.name]).wait()
+#     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
+#         "-subj", "/CN=\xC3\xA0\xC2\xB2\xC2\xA0_\xC3\xA0\xC2\xB2\xC2\xA0.com", "-out", invalid_csr.name]).wait()
 
     # nonexistent domain csr
     nonexistent_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
-        "-subj", "/CN=404.gethttpsforfree.com", "-out", nonexistent_csr.name]).wait()
+        "-subj", "/CN=404.{0}".format(DOMAIN), "-out", nonexistent_csr.name]).wait()
 
     # account-signed domain csr
     account_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
         "-subj", "/CN={0}".format(DOMAIN), "-out", account_csr.name]).wait()
+    
+    # Default test configuration
+    config = configparser.ConfigParser()
+    config.read("./example.ini".format(DOMAIN))
+    config["acmednstiny"]["CAUrl"] = CAURL
+    config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
+    config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
+    config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
+    config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
+    config["DNS"]["Host"] = DNSHOST
+    config["DNS"]["Port"] = DNSPORT
+    config["DNS"]["Zone"] = DNSZONE
+    
+    goodCName = NamedTemporaryFile()
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = domain_csr.name
+    with open(goodCName.name, 'w') as configfile:
+        config.write(configfile)
+    
+    goodSAN = NamedTemporaryFile()
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = san_csr.name
+    with open(goodSAN.name, 'w') as configfile:
+        config.write(configfile)
+    
+    weakKey = NamedTemporaryFile()
+    config["acmednstiny"]["AccountKeyFile"] = weak_key.name
+    config["acmednstiny"]["CSRFile"] = domain_csr.name
+    with open(weakKey.name, 'w') as configfile:
+        config.write(configfile)
+    
+    invalidCSR = NamedTemporaryFile()
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = invalid_csr.name
+    with open(invalidCSR.name, 'w') as configfile:
+        config.write(configfile)
+        
+    inexistantDomain = NamedTemporaryFile()
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = nonexistent_csr.name
+    with open(inexistantDomain.name, 'w') as configfile:
+        config.write(configfile)
+        
+    accountAsDomain = NamedTemporaryFile()
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = account_csr.name
+    with open(accountAsDomain.name, 'w') as configfile:
+        config.write(configfile)
 
     return {
-        "account_key": account_key,
-        "weak_key": weak_key,
-        "domain_key": domain_key,
-        "domain_csr": domain_csr,
-        "san_csr": san_csr,
-        "invalid_csr": invalid_csr,
-        "nonexistent_csr": nonexistent_csr,
-        "account_csr": account_csr,
+        "goodCName": goodCName,
+        "goodSAN": goodSAN,
+        "weakKey": weakKey,
+        "invalidCSR": invalidCSR,
+        "inexistantDomain": inexistantDomain,
+        "accountAsDomain": accountAsDomain,
+        "key": {"accountkey": account_key,
+                 "weakkey": weak_key,
+                 "domainkey": domain_key},
+        "csr" : {"domaincsr": domain_csr,
+                 "sancsr": san_csr,
+                 "invalidcsr": invalid_csr,
+                 "nonexistantcsr": nonexistent_csr,
+                 "accountcsr": account_csr}
     }
 
-# fake a folder structure to catch the key authorization file
-FS = {}
-class Passthrough(LoggingMixIn, Operations): # pragma: no cover
-    def getattr(self, path, fh=None):
-        f = FS.get(path, None)
-        if f is None:
-            return super(Passthrough, self).getattr(path, fh=fh)
-        return f
-
-    def write(self, path, buf, offset, fh):
-        urlopen("http://{0}/.well-known/acme-challenge/?{1}".format(DOMAIN,
-            os.getenv("TRAVIS_SESSION", "not_set")), buf)
-        return len(buf)
-
-    def create(self, path, mode, fi=None):
-        FS[path] = {"st_mode": 33204}
-        return 0
-
-    def unlink(self, path):
-        del(FS[path])
-        return 0
-
-if __name__ == "__main__": # pragma: no cover
-    FUSE(Passthrough(), sys.argv[1], nothreads=True, foreground=True)
