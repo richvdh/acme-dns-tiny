@@ -126,9 +126,9 @@ def get_crt(config, log=LOGGER):
         except dns.exception.DNSException as e:
             raise ValueError("Error updating DNS: {0} {1}".format(
                     e.code, e.msg))
-        time.sleep(10)
 
         # notify challenge are met
+        time.sleep(config["acmednstiny"].getint("CheckChallengeDelay"))
         code, result, headers = _send_signed_request(challenge["uri"], {
             "resource": "challenge",
             "keyAuthorization": keyauthorization,
@@ -205,11 +205,12 @@ def main(argv):
     args = parser.parse_args(argv)
 
     config = ConfigParser()
-    config.read_dict({"acmednstiny" : { "CAUrl" : "https://acme-staging.api.letsencrypt.org"},
+    config.read_dict({"acmednstiny" : {"CAUrl" : "https://acme-staging.api.letsencrypt.org",
+                                       "CheckChallengeDelay" : 2},
                       "DNS" : { "Port" : "53" }})
     config.read(args.configfile)
 
-    if (set(["accountkeyfile", "csrfile", "caurl"]) - set(config.options("acmednstiny"))
+    if (set(["accountkeyfile", "csrfile", "caurl", "checkchallengedelay"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
         or set(["zone", "host", "port"]) - set(config.options("DNS"))):
         raise ValueError("Some required settings are missing.")
