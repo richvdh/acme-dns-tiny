@@ -31,7 +31,7 @@ def get_crt(config, log=LOGGER):
             dns_update.add(rrset.name, rrset)
         elif action == "delete":
             dns_update.delete(rrset.name, rrset)
-        resp = dns.query.tcp(dns_update, config["DNS"]["Host"], port=config.getint("DNS","Port"))
+        resp = dns.query.tcp(dns_update, config["DNS"]["Host"], port=config.getint("DNS", "Port"))
         dns_update = None
         return resp
 
@@ -53,8 +53,20 @@ def get_crt(config, log=LOGGER):
         except IOError as e:
             return getattr(e, "code", None), getattr(e, "read", e.__str__)(), None
 
-    # create DNS keyring
+    # create DNS keyring and resolver
     keyring = dns.tsigkeyring.from_text({ config["TSIGKeyring"]["KeyName"] : config["TSIGKeyring"]["KeyValue"]})
+    try:
+        nameserver = [ipv4_rrset.to_text() for ipv4_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="A")]
+    finally:
+        try:
+            nameserver = nameserver + [ipv6_rrset.to_text() for ipv6_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="AAAA")]
+        finally:
+            if not nameserver:
+                nameserver = [config["DNS"]["Host"]]
+    resolver = dns.resolver.Resolver(configure=False)
+    resolver.nameservers = nameserver
+    resolver.retry_servfail = True
+    log.info("DNS checks will use servers: {0}".format(resolver.nameservers))
 
     # parse account key to get public key
     log.info("Parsing account key...")
@@ -123,12 +135,32 @@ def get_crt(config, log=LOGGER):
         dnsrr_set = dns.rrset.from_text(dnsrr_domain, 300, "IN", "TXT",  '"{0}"'.format(keydigest64))
         try:
             _update_dns(dnsrr_set, "add")
-        except dns.exception.DNSException as e:
-            raise ValueError("Error updating DNS: {0} {1}".format(
-                    e.code, e.msg))
+        except dns.exception.DNSException as dnsexception:
+            raise ValueError("Error updating DNS: {0} : {1}".format(type(dnsexception).__name__, str(dnsexception)))
 
         # notify challenge are met
         time.sleep(config["acmednstiny"].getint("CheckChallengeDelay"))
+        log.info("Self challenge check")
+        challenge_verified = False
+        number_check_fail = 0
+        while challenge_verified is False:
+            try:
+                log.info("check retry {0}, with nameservers: {1}".format(number_check_fail, resolver.nameservers))
+                challenges = resolver.query(dnsrr_domain, rdtype="TXT")
+                for response in challenges.rrset:
+                    log.info("looking for {0}, found {1}, equals ? {2}".format(keydigest64, response.to_text(), response.to_text() == '"{0}"'.format(keydigest64)))
+                    challenge_verified = challenge_verified or response.to_text() == '"{0}"'.format(keydigest64)
+            except dns.exception.DNSException as dnsexception:
+                log.info("Info: retry, because a DNS error occurred while checking challenge: {0} : {1}".format(type(dnsexception).__name__, dnsexception))
+            finally:
+                if number_check_fail > 10:
+                    raise ValueError("Error checking challenge, value not found: {0}".format(keydigest64))
+                
+                if challenge_verified is False:
+                    number_check_fail = number_check_fail + 1
+                    time.sleep(2)
+
+        log.info("Ask ACME server to perform check...")
         code, result, headers = _send_signed_request(challenge["uri"], {
             "resource": "challenge",
             "keyAuthorization": keyauthorization,
