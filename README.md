@@ -5,7 +5,7 @@
 
 This is a tiny, auditable script that you can throw on your server to issue
 and renew [Let's Encrypt](https://letsencrypt.org/) certificates with DNS
-authentication.
+validation.
 
 Since it has to have access to your private ACME account key and the
 rights to update the DNS records of your DNS server, this code has been designed
@@ -13,7 +13,7 @@ to be as tiny as possible (currently less than 250 lines).
 
 The only prerequisites are python (especially the dnspython module) and openssl.
 
-**PLEASE READ THE SOURCE CODE! YOU MUST TRUST IT WITH YOUR ACCOUNT PRIVATE KEYS!**
+**PLEASE READ THE SOURCE CODE! YOU MUST TRUST IT! IT HANDLES YOUR ACCOUNT PRIVATE KEYS!**
 
 Note: this script is a fork of the [acme-tiny project](https://github.com/diafygi/acme-tiny)
 which uses ACME HTTP verification to create signed certificates.
@@ -88,7 +88,7 @@ openssl req -new -sha256 -key domain.key -subj "/CN=example.org" > domain.csr
 openssl req -new -sha256 -key domain.key -subj "/" -reqexts SAN -config <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\nsubjectAltName=DNS:example.org,DNS:www.example.org")) > domain.csr
 ```
 
-### Step 3: Make your DNS server allow dynamic updates
+### Step 3: Make your DNS server allows dynamic updates
 
 You must prove you own the domains you want a certificate for, so Let's Encrypt
 requires you host some DNS resource records.
@@ -106,9 +106,9 @@ The configuration of the script will need:
 * the address and the port of the DNS server
 
 The simplest way to configure the script is to copy the `example.ini` file
-from this repository and update the values as needed.
+from this repository and update values as needed.
 
-**Be careful! Set permissions correctly on your configuration file, because
+**Be careful! Set read permissions correctly on the configuration file, because
 it will contain the key authorized to modify your DNS configuration !**
 
 ### Step 4: Get a signed certificate!

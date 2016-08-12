@@ -55,24 +55,6 @@ class TestModule(unittest.TestCase):
         self.assertIsInstance(result, ValueError)
         self.assertIn("Key too small", result.args[0])
 
-#     def test_invalid_domain(self):
-#         """ Let's Encrypt rejects invalid domains """
-#         try:
-#             result = acme_dns_tiny.main([CONFIGS["invalidCSR"].name])
-#         except Exception as e:
-#             result = e
-#         self.assertIsInstance(result, ValueError)
-#         self.assertIn("Invalid character in DNS name", result.args[0])
-# 
-#     def test_nonexistant_domain(self):
-#         """ Should be unable verify a nonexistent domain """
-#         try:
-#             result = acme_dns_tiny.main([CONFIGS["inexistantDomain"].name])
-#         except Exception as e:
-#             result = e
-#         self.assertIsInstance(result, ValueError)
-#         self.assertIn("urn:acme:error:connection", result.args[0])
-
     def test_account_key_domain(self):
         """ Can't use the account key for the CSR """
         try:
