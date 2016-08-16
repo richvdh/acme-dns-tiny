@@ -24,7 +24,7 @@ def get_crt(config, log=LOGGER):
 
     # helper function to send DNS dynamic update messages
     def _update_dns(rrset, action):
-        algorithm = dns.name.from_text("hmac-{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
+        algorithm = dns.name.from_text("{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
         dns_update = dns.update.Update(config["DNS"]["zone"], keyring=keyring, keyalgorithm=algorithm)
         if action == "add":
             dns_update.add(rrset.name, rrset)

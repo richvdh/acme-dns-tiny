@@ -101,7 +101,7 @@ updates and create a TSIG key which will give rights to perform updates.
 
 The configuration of the script will need:
 * the TSIG key name and value
-* the algorithm used for TSIG key (MD5, SHA1, SHA224, SHA256, SHA384 or SHA512)
+* the algorithm used for TSIG key (hmac-md5, hmac-sha1, hmac-sha224, hmac-sha256, hmac-sha384 or hmac-512; list of algoithm depends on knowe ones by dnspython module)
 * the DNS zone to update
 * the address and the port of the DNS server
 
