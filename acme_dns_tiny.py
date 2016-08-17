@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
 import dns.resolver, dns.tsigkeyring, dns.update
 from configparser import ConfigParser
