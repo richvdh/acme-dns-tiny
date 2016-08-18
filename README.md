@@ -29,9 +29,9 @@ but they do fantastic work.
 
 ## How to use this script
 
-See our the [HowTo Use](howto-use) wiki page for main informations.
+See our the [HowTo Use](https://projects.adorsaz.ch/adrien/acme-dns-tiny/wikis/howto-use) wiki page for main informations.
 
-You may be interested by the [HowTo Setup with BIND9](howto-setup-with-bind9)
+You may be interested by the [HowTo Setup with BIND9](https://projects.adorsaz.ch/adrien/acme-dns-tiny/wikis/howto-setup-with-bind9)
 page too which show a step by step example to set up the script
 with a BIND9 DNS server.
 
@@ -67,4 +67,5 @@ audited by anyone who wants to run it.
 
 If you want to add features for your own setup to make things easier for you,
 please do! It's open source, so feel free to fork it and modify as necessary.
+
 
