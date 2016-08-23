@@ -40,16 +40,6 @@ def gen_configs():
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
         "-out", san_csr.name]).wait()
 
-    # invalid domain csr
-    invalid_csr = NamedTemporaryFile()
-#     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
-#         "-subj", "/CN=\xC3\xA0\xC2\xB2\xC2\xA0_\xC3\xA0\xC2\xB2\xC2\xA0.com", "-out", invalid_csr.name]).wait()
-
-    # nonexistent domain csr
-    nonexistent_csr = NamedTemporaryFile()
-    Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
-        "-subj", "/CN=404.{0}".format(DOMAIN), "-out", nonexistent_csr.name]).wait()
-
     # account-signed domain csr
     account_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
@@ -84,18 +74,6 @@ def gen_configs():
     config["acmednstiny"]["CSRFile"] = domain_csr.name
     with open(weakKey.name, 'w') as configfile:
         config.write(configfile)
-    
-    invalidCSR = NamedTemporaryFile()
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = invalid_csr.name
-    with open(invalidCSR.name, 'w') as configfile:
-        config.write(configfile)
-        
-    inexistantDomain = NamedTemporaryFile()
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = nonexistent_csr.name
-    with open(inexistantDomain.name, 'w') as configfile:
-        config.write(configfile)
         
     accountAsDomain = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
@@ -107,16 +85,12 @@ def gen_configs():
         "goodCName": goodCName,
         "goodSAN": goodSAN,
         "weakKey": weakKey,
-        "invalidCSR": invalidCSR,
-        "inexistantDomain": inexistantDomain,
         "accountAsDomain": accountAsDomain,
         "key": {"accountkey": account_key,
                  "weakkey": weak_key,
                  "domainkey": domain_key},
         "csr" : {"domaincsr": domain_csr,
                  "sancsr": san_csr,
-                 "invalidcsr": invalid_csr,
-                 "nonexistantcsr": nonexistent_csr,
                  "accountcsr": account_csr}
     }
 
