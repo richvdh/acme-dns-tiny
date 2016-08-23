@@ -87,13 +87,19 @@ def gen_configs():
     config["acmednstiny"]["CSRFile"] = account_csr.name
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
-
+    
+    missingDNS = NamedTemporaryFile()
+    config["DNS"] = {}
+    with open(missingDNS.name, 'w') as configfile:
+        config.write(configfile)
+    
     return {
         "goodCName": goodCName,
         "dnsHostIP": dnsHostIP,
         "goodSAN": goodSAN,
         "weakKey": weakKey,
         "accountAsDomain": accountAsDomain,
+        "missingDNS": missingDNS,
         "key": {"accountkey": account_key,
                  "weakkey": weak_key,
                  "domainkey": domain_key},

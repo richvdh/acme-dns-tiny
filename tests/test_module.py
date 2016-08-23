@@ -83,6 +83,14 @@ class TestModule(unittest.TestCase):
         self.assertIsInstance(result, ValueError)
         self.assertIn("Certificate public key must be different than account key", result.args[0])
 
+    def test_failure_notcompleted_configuration(self):
+        """ Configuration file have to be completed """
+        try:
+            result = acme_dns_tiny.main([CONFIGS['missingDNS'].name])
+        except Exception as e:
+            result = e
+        self.assertIsInstance(result, ValueError)
+        self.assertIn("Some required settings are missing.", result.args[0])
 
 if __name__ == "__main__":
     unittest.main()
