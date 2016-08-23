@@ -8,6 +8,7 @@ DOMAIN = os.getenv("GITLABCI_DOMAIN")
 CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
 CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
+DNSHOSTIP = os.getenv("GITLABCI_DNSHOSTIP")
 DNSZONE = os.getenv("GITLABCI_DNSZONE")
 DNSPORT = os.getenv("GITLABCI_DNSPORT", "53")
 TSIGKEYNAME = os.getenv("GITLABCI_TSIGKEYNAME")
@@ -63,6 +64,12 @@ def gen_configs():
     with open(goodCName.name, 'w') as configfile:
         config.write(configfile)
     
+    dnsHostIP = NamedTemporaryFile()
+    config["DNS"]["Host"] = DNSHOSTIP
+    with open(dnsHostIP.name, 'w') as configfile:
+        config.write(configfile)
+    config["DNS"]["Host"] = DNSHOST
+    
     goodSAN = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = san_csr.name
@@ -83,6 +90,7 @@ def gen_configs():
 
     return {
         "goodCName": goodCName,
+        "dnsHostIP": dnsHostIP,
         "goodSAN": goodSAN,
         "weakKey": weakKey,
         "accountAsDomain": accountAsDomain,

@@ -4,17 +4,36 @@ from io import StringIO
 import acme_dns_tiny
 from .monkey import gen_configs
 from .acme_account_delete import delete_account
+import logassert
 
 CONFIGS = gen_configs()
 
 class TestModule(unittest.TestCase):
     "Tests for acme_dns_tiny.get_crt()"
+    
+    def setUp(self):
+        logassert.setup(self, 'acme_dns_tiny_logger')
 
     def test_success_cn(self):
         """ Successfully issue a certificate via common name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         result = acme_dns_tiny.main([CONFIGS['goodCName'].name])
+        sys.stdout.seek(0)
+        crt = sys.stdout.read().encode("utf8")
+        sys.stdout = old_stdout
+        out, err = Popen(["openssl", "x509", "-text", "-noout"], stdin=PIPE,
+            stdout=PIPE, stderr=PIPE).communicate(crt)
+        self.assertIn("BEGIN", crt.decode("utf8"))
+        self.assertIn("Issuer", out.decode("utf8"))
+        
+    def test_success_dnshost_ip(self):
+        """ When DNS Host is an IP, DNS resolution have to fail without error """
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+        result = acme_dns_tiny.main([CONFIGS['dnsHostIP'].name])
+        self.assertLoggedInfo("DNS IPv4 record not found for configured dns host.")
+        self.assertLoggedInfo("DNS IPv4 and IPv6 records not found for configured dns host.")
         sys.stdout.seek(0)
         crt = sys.stdout.read().encode("utf8")
         sys.stdout = old_stdout

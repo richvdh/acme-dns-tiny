@@ -4,7 +4,7 @@ import dns.resolver, dns.tsigkeyring, dns.update
 from configparser import ConfigParser
 from urllib.request import urlopen
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger('acme_dns_tiny_logger')
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
