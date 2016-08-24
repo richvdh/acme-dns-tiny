@@ -83,6 +83,15 @@ class TestModule(unittest.TestCase):
         self.assertIsInstance(result, ValueError)
         self.assertIn("Certificate public key must be different than account key", result.args[0])
 
+    def test_failure_dns_update_tsigkeyname(self):
+        """ Fail to update DNS records by invalid TSIG Key name """
+        try:
+            result = acme_dns_tiny.main([CONFIGS['invalidTSIGName'].name])
+        except Exception as e:
+            result = e
+        self.assertIsInstance(result, ValueError)
+        self.assertIn("Error updating DNS", result.args[0])
+
     def test_failure_notcompleted_configuration(self):
         """ Configuration file have to be completed """
         try:

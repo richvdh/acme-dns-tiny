@@ -88,6 +88,11 @@ def gen_configs():
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
     
+    invalidTSIGName = NamedTemporaryFile()
+    config["TSIGKeyring"]["KeyName"] = "{0}.invalid".format(TSIGKEYNAME)
+    with open(invalidTSIGName.name, 'w') as configfile:
+        config.write(configfile)
+    
     missingDNS = NamedTemporaryFile()
     config["DNS"] = {}
     with open(missingDNS.name, 'w') as configfile:
@@ -99,6 +104,7 @@ def gen_configs():
         "goodSAN": goodSAN,
         "weakKey": weakKey,
         "accountAsDomain": accountAsDomain,
+        "invalidTSIGName": invalidTSIGName,
         "missingDNS": missingDNS,
         "key": {"accountkey": account_key,
                  "weakkey": weak_key,
