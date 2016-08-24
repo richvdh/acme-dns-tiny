@@ -1,7 +1,6 @@
-import os, sys, configparser
+import os, configparser
 from tempfile import NamedTemporaryFile
 from subprocess import Popen
-from urllib.request import urlopen
 
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
@@ -16,7 +15,7 @@ TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
 TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
 
 # generate account and domain keys
-def gen_configs():
+def gen_config():
     # good account key
     account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()

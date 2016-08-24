@@ -2,11 +2,11 @@ import unittest, sys
 from subprocess import Popen, PIPE
 from io import StringIO
 import acme_dns_tiny
-from .monkey import gen_configs
+from .config_maker import gen_config
 from .acme_account_delete import delete_account
 import logassert
 
-CONFIGS = gen_configs()
+CONFIGS = gen_config()
 
 class TestModule(unittest.TestCase):
     "Tests for acme_dns_tiny.get_crt()"
