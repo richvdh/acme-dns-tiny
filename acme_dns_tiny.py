@@ -230,7 +230,7 @@ def main(argv):
             It's only ~250 lines, so it won't take long.
 
             ===Example Usage===
-            python acme_dns_tiny.py ./example.ini > chain.crt
+            python3 acme_dns_tiny.py ./example.ini > chain.crt
             See example.ini file to configure correctly this script.
             ===================
             """)
