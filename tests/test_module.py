@@ -102,6 +102,22 @@ class TestModule(unittest.TestCase):
         self.assertIn("Some required settings are missing.", result.args[0])
 
 if __name__ == "__main__":
-    unittest.main()
-    # delete account key registration at end of tests
-    delete_account(CONFIGS["key"]["accountkey"].name)
+    try:
+        unittest.main()
+    finally:
+        # delete account key registration at end of tests
+        delete_account(CONFIGS["key"]["accountkey"].name)
+        # close temp files correctly
+        CONFIGS["goodCName"].close()
+        CONFIGS["dnsHostIP"].close()
+        CONFIGS["goodSAN"].close()
+        CONFIGS["weakKey"].close()
+        CONFIGS["accountAsDomain"].close()
+        CONFIGS["invalidTSIGName"].close()
+        CONFIGS["missingDNS"].close()
+        CONFIGS["key"]["accountkey"].close()
+        CONFIGS["key"]["weakkey"].close()
+        CONFIGS["key"]["domainkey"].close()
+        CONFIGS["csr"]["domaincsr"].close()
+        CONFIGS["csr"]["sancsr"].close()
+        CONFIGS["csr"]["accountcsr"].close()
