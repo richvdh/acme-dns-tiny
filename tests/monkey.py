@@ -6,7 +6,7 @@ from urllib.request import urlopen
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
 CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
-CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGDELAY", "3")
+CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
 DNSZONE = os.getenv("GITLABCI_DNSZONE")
 DNSPORT = os.getenv("GITLABCI_DNSPORT", "53")
