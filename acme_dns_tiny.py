@@ -4,7 +4,7 @@ import dns.resolver, dns.tsigkeyring, dns.update
 from configparser import ConfigParser
 from urllib.request import urlopen
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger('acme_dns_tiny_logger')
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
@@ -53,6 +53,7 @@ def get_crt(config, log=LOGGER):
             return getattr(e, "code", None), getattr(e, "read", e.__str__)(), None
 
     # create DNS keyring and resolver
+    log.info("Prepare DNS tools...")
     keyring = dns.tsigkeyring.from_text({config["TSIGKeyring"]["KeyName"]: config["TSIGKeyring"]["KeyValue"]})
     nameserver = []
     try:
@@ -70,7 +71,6 @@ def get_crt(config, log=LOGGER):
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = nameserver
     resolver.retry_servfail = True
-    log.info("DNS checks will use servers: {0}".format(resolver.nameservers))
 
     # parse account key to get public key
     log.info("Parsing account key...")
@@ -130,7 +130,7 @@ def get_crt(config, log=LOGGER):
             raise ValueError("Error requesting challenges: {0} {1}".format(code, result))
 
         # make and install DNS resource record
-        log.info("Create DNS RR")
+        log.info("Create DNS RR...")
         challenge = [c for c in json.loads(result.decode("utf8"))["challenges"] if c["type"] == "dns-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge["token"])
         keyauthorization = "{0}.{1}".format(token, thumbprint)
@@ -144,15 +144,15 @@ def get_crt(config, log=LOGGER):
 
         # notify challenge are met
         time.sleep(config["acmednstiny"].getint("CheckChallengeDelay"))
-        log.info("Self challenge check")
+        log.info("Self challenge check...")
         challenge_verified = False
         number_check_fail = 0
         while challenge_verified is False:
             try:
-                log.info("check retry {0}, with nameservers: {1}".format(number_check_fail, resolver.nameservers))
+                log.info('Try {0}: Check ressource with value "{1}" exits on nameservers: {2}'.format(number_check_fail+1, keydigest64, resolver.nameservers))
                 challenges = resolver.query(dnsrr_domain, rdtype="TXT")
                 for response in challenges.rrset:
-                    log.info("looking for {0}, found {1}, equals ? {2}".format(keydigest64, response.to_text(), response.to_text() == '"{0}"'.format(keydigest64)))
+                    log.info(".. Found value {0}".format(response.to_text()))
                     challenge_verified = challenge_verified or response.to_text() == '"{0}"'.format(keydigest64)
             except dns.exception.DNSException as dnsexception:
                 log.info("Info: retry, because a DNS error occurred while checking challenge: {0} : {1}".format(type(dnsexception).__name__, dnsexception))
@@ -163,7 +163,7 @@ def get_crt(config, log=LOGGER):
                 if challenge_verified is False:
                     number_check_fail = number_check_fail + 1
                     time.sleep(2)
-        log.info("Ask ACME server to perform check...")
+        log.info("Ask CA server to perform check...")
         code, result, headers = _send_signed_request(challenge["uri"], {
             "resource": "challenge",
             "keyAuthorization": keyauthorization,
@@ -224,13 +224,13 @@ def main(argv):
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=textwrap.dedent("""\
             This script automates the process of getting a signed TLS certificate
-            chain from Let's Encrypt using the ACME protocol and its dns verification.
+            chain from Let's Encrypt using the ACME protocol and its DNS verification.
             It will need to have access to your private account key and dns server
             so PLEASE READ THROUGH IT!
             It's only ~250 lines, so it won't take long.
 
             ===Example Usage===
-            python acme_dns_tiny.py ./example.ini > chain.crt
+            python3 acme_dns_tiny.py ./example.ini > chain.crt
             See example.ini file to configure correctly this script.
             ===================
             """)

@@ -1,13 +1,13 @@
-import os, sys, configparser
+import os, configparser
 from tempfile import NamedTemporaryFile
 from subprocess import Popen
-from urllib.request import urlopen
 
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
 CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
-CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGDELAY", "3")
+CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
+DNSHOSTIP = os.getenv("GITLABCI_DNSHOSTIP")
 DNSZONE = os.getenv("GITLABCI_DNSZONE")
 DNSPORT = os.getenv("GITLABCI_DNSPORT", "53")
 TSIGKEYNAME = os.getenv("GITLABCI_TSIGKEYNAME")
@@ -15,7 +15,7 @@ TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
 TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
 
 # generate account and domain keys
-def gen_configs():
+def gen_config():
     # good account key
     account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
@@ -40,16 +40,6 @@ def gen_configs():
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
         "-out", san_csr.name]).wait()
 
-    # invalid domain csr
-    invalid_csr = NamedTemporaryFile()
-#     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
-#         "-subj", "/CN=\xC3\xA0\xC2\xB2\xC2\xA0_\xC3\xA0\xC2\xB2\xC2\xA0.com", "-out", invalid_csr.name]).wait()
-
-    # nonexistent domain csr
-    nonexistent_csr = NamedTemporaryFile()
-    Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
-        "-subj", "/CN=404.{0}".format(DOMAIN), "-out", nonexistent_csr.name]).wait()
-
     # account-signed domain csr
     account_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
@@ -73,6 +63,12 @@ def gen_configs():
     with open(goodCName.name, 'w') as configfile:
         config.write(configfile)
     
+    dnsHostIP = NamedTemporaryFile()
+    config["DNS"]["Host"] = DNSHOSTIP
+    with open(dnsHostIP.name, 'w') as configfile:
+        config.write(configfile)
+    config["DNS"]["Host"] = DNSHOST
+    
     goodSAN = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = san_csr.name
@@ -84,39 +80,36 @@ def gen_configs():
     config["acmednstiny"]["CSRFile"] = domain_csr.name
     with open(weakKey.name, 'w') as configfile:
         config.write(configfile)
-    
-    invalidCSR = NamedTemporaryFile()
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = invalid_csr.name
-    with open(invalidCSR.name, 'w') as configfile:
-        config.write(configfile)
-        
-    inexistantDomain = NamedTemporaryFile()
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = nonexistent_csr.name
-    with open(inexistantDomain.name, 'w') as configfile:
-        config.write(configfile)
         
     accountAsDomain = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = account_csr.name
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
-
+    
+    invalidTSIGName = NamedTemporaryFile()
+    config["TSIGKeyring"]["KeyName"] = "{0}.invalid".format(TSIGKEYNAME)
+    with open(invalidTSIGName.name, 'w') as configfile:
+        config.write(configfile)
+    
+    missingDNS = NamedTemporaryFile()
+    config["DNS"] = {}
+    with open(missingDNS.name, 'w') as configfile:
+        config.write(configfile)
+    
     return {
         "goodCName": goodCName,
+        "dnsHostIP": dnsHostIP,
         "goodSAN": goodSAN,
         "weakKey": weakKey,
-        "invalidCSR": invalidCSR,
-        "inexistantDomain": inexistantDomain,
         "accountAsDomain": accountAsDomain,
+        "invalidTSIGName": invalidTSIGName,
+        "missingDNS": missingDNS,
         "key": {"accountkey": account_key,
                  "weakkey": weak_key,
                  "domainkey": domain_key},
         "csr" : {"domaincsr": domain_csr,
                  "sancsr": san_csr,
-                 "invalidcsr": invalid_csr,
-                 "nonexistantcsr": nonexistent_csr,
                  "accountcsr": account_csr}
     }
 
