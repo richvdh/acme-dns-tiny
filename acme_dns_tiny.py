@@ -38,7 +38,7 @@ def get_crt(config, log=LOGGER):
     def _send_signed_request(url, payload):
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(header)
-        protected["nonce"] = urlopen(config["acmednstiny"]["CAUrl"] + "/directory").headers["Replay-Nonce"]
+        protected["nonce"] = urlopen(config["acmednstiny"]["ACMEDirectory"]).headers["Replay-Nonce"]
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", config["acmednstiny"]["AccountKeyFile"]],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
@@ -240,12 +240,12 @@ def main(argv):
     args = parser.parse_args(argv)
 
     config = ConfigParser()
-    config.read_dict({"acmednstiny": {"CAUrl": "https://acme-staging.api.letsencrypt.org",
-                                       "CheckChallengeDelay": 2},
+    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging.api.letsencrypt.org/directory",
+                                      "CheckChallengeDelay": 2},
                       "DNS": {"Port": "53"}})
     config.read(args.configfile)
 
-    if (set(["accountkeyfile", "csrfile", "caurl", "checkchallengedelay"]) - set(config.options("acmednstiny"))
+    if (set(["accountkeyfile", "csrfile", "acmedirectory", "checkchallengedelay"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
         or set(["zone", "host", "port"]) - set(config.options("DNS"))):
         raise ValueError("Some required settings are missing.")

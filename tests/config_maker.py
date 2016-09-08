@@ -4,7 +4,7 @@ from subprocess import Popen
 
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
-CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
+ACMEDIRECTORY = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
 DNSHOSTIP = os.getenv("GITLABCI_DNSHOSTIP")
@@ -48,7 +48,7 @@ def gen_config():
     # Default test configuration
     config = configparser.ConfigParser()
     config.read("./example.ini".format(DOMAIN))
-    config["acmednstiny"]["CAUrl"] = CAURL
+    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
     config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
     config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
     config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE

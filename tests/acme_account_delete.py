@@ -1,7 +1,7 @@
 import subprocess, os, json, base64, binascii, re, copy, logging
 from urllib.request import urlopen
 
-CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.StreamHandler())
@@ -26,7 +26,7 @@ def delete_account(accountkeypath, log=LOGGER):
     def _send_signed_request(url, payload):
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(header)
-        protected["nonce"] = urlopen(CAURL + "/directory").headers["Replay-Nonce"]
+        protected["nonce"] = urlopen(ACMEDirectory).headers["Replay-Nonce"]
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
