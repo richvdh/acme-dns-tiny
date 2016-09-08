@@ -34,7 +34,7 @@ def get_crt(config, log=LOGGER):
         dns_update = None
         return resp
 
-    # helper function make signed requests
+    # helper function to send signed requests
     def _send_signed_request(url, payload):
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(header)
