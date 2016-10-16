@@ -6,11 +6,24 @@ from .config_maker import gen_config
 from .acme_account_delete import delete_account
 import logassert
 
-CONFIGS = gen_config()
-
 class TestModule(unittest.TestCase):
     "Tests for acme_dns_tiny.get_crt()"
     
+    @classmethod
+    def setUpClass(self):
+        self.configs = gen_config()
+        super(TestModule, self).setUpClass()
+
+    # To clean ACME staging server and close correctly temporary files
+    @classmethod
+    def tearDownClass(self):
+        # delete account key registration at end of tests
+        delete_account(self.configs["accountkey"].name)
+        # close temp files correctly
+        for tmpfile in self.configs:
+            self.configs[tmpfile].close()
+        super(TestModule, self).tearDownClass()
+
     def setUp(self):
         logassert.setup(self, 'acme_dns_tiny_logger')
 
@@ -18,7 +31,7 @@ class TestModule(unittest.TestCase):
         """ Successfully issue a certificate via common name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        result = acme_dns_tiny.main([CONFIGS['goodCName'].name])
+        result = acme_dns_tiny.main([self.configs['goodCName'].name])
         sys.stdout.seek(0)
         crt = sys.stdout.read().encode("utf8")
         sys.stdout = old_stdout
@@ -31,7 +44,7 @@ class TestModule(unittest.TestCase):
         """ When DNS Host is an IP, DNS resolution have to fail without error """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        result = acme_dns_tiny.main([CONFIGS['dnsHostIP'].name])
+        result = acme_dns_tiny.main([self.configs['dnsHostIP'].name])
         self.assertLoggedInfo("DNS IPv4 record not found for configured dns host.")
         self.assertLoggedInfo("DNS IPv4 and IPv6 records not found for configured dns host.")
         sys.stdout.seek(0)
@@ -46,7 +59,7 @@ class TestModule(unittest.TestCase):
         """ Successfully issue a certificate via subject alt name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        result = acme_dns_tiny.main([CONFIGS['goodSAN'].name])
+        result = acme_dns_tiny.main([self.configs['goodSAN'].name])
         sys.stdout.seek(0)
         crt = sys.stdout.read().encode("utf8")
         sys.stdout = old_stdout
@@ -58,7 +71,7 @@ class TestModule(unittest.TestCase):
     def test_success_cli(self):
         """ Successfully issue a certificate via command line interface """
         crt, err = Popen([
-            "python3", "acme_dns_tiny.py", CONFIGS['goodCName'].name
+            "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=PIPE, stderr=PIPE).communicate()
         out, err = Popen(["openssl", "x509", "-text", "-noout"], stdin=PIPE,
             stdout=PIPE, stderr=PIPE).communicate(crt)
@@ -68,7 +81,7 @@ class TestModule(unittest.TestCase):
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
         try:
-            result = acme_dns_tiny.main([CONFIGS['weakKey'].name])
+            result = acme_dns_tiny.main([self.configs['weakKey'].name])
         except Exception as e:
             result = e
         self.assertIsInstance(result, ValueError)
@@ -77,7 +90,7 @@ class TestModule(unittest.TestCase):
     def test_account_key_domain(self):
         """ Can't use the account key for the CSR """
         try:
-            result = acme_dns_tiny.main([CONFIGS['accountAsDomain'].name])
+            result = acme_dns_tiny.main([self.configs['accountAsDomain'].name])
         except Exception as e:
             result = e
         self.assertIsInstance(result, ValueError)
@@ -86,7 +99,7 @@ class TestModule(unittest.TestCase):
     def test_failure_dns_update_tsigkeyname(self):
         """ Fail to update DNS records by invalid TSIG Key name """
         try:
-            result = acme_dns_tiny.main([CONFIGS['invalidTSIGName'].name])
+            result = acme_dns_tiny.main([self.configs['invalidTSIGName'].name])
         except Exception as e:
             result = e
         self.assertIsInstance(result, ValueError)
@@ -95,29 +108,11 @@ class TestModule(unittest.TestCase):
     def test_failure_notcompleted_configuration(self):
         """ Configuration file have to be completed """
         try:
-            result = acme_dns_tiny.main([CONFIGS['missingDNS'].name])
+            result = acme_dns_tiny.main([self.configs['missingDNS'].name])
         except Exception as e:
             result = e
         self.assertIsInstance(result, ValueError)
         self.assertIn("Some required settings are missing.", result.args[0])
 
 if __name__ == "__main__":
-    try:
-        unittest.main()
-    finally:
-        # delete account key registration at end of tests
-        delete_account(CONFIGS["key"]["accountkey"].name)
-        # close temp files correctly
-        CONFIGS["goodCName"].close()
-        CONFIGS["dnsHostIP"].close()
-        CONFIGS["goodSAN"].close()
-        CONFIGS["weakKey"].close()
-        CONFIGS["accountAsDomain"].close()
-        CONFIGS["invalidTSIGName"].close()
-        CONFIGS["missingDNS"].close()
-        CONFIGS["key"]["accountkey"].close()
-        CONFIGS["key"]["weakkey"].close()
-        CONFIGS["key"]["domainkey"].close()
-        CONFIGS["csr"]["domaincsr"].close()
-        CONFIGS["csr"]["sancsr"].close()
-        CONFIGS["csr"]["accountcsr"].close()
+    unittest.main()
