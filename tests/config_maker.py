@@ -4,7 +4,7 @@ from subprocess import Popen
 
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
-CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
+ACMEDIRECTORY = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
 DNSHOSTIP = os.getenv("GITLABCI_DNSHOSTIP")
@@ -48,8 +48,10 @@ def gen_config():
     # Default test configuration
     config = configparser.ConfigParser()
     config.read("./example.ini".format(DOMAIN))
-    config["acmednstiny"]["CAUrl"] = CAURL
+    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
     config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
+    config["acmednstiny"]["MailContact"] = "mail@example.com"
+    del config["acmednstiny"]["PhoneContact"]
     config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
     config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
     config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
@@ -98,6 +100,7 @@ def gen_config():
         config.write(configfile)
     
     return {
+        # configs
         "goodCName": goodCName,
         "dnsHostIP": dnsHostIP,
         "goodSAN": goodSAN,
@@ -105,11 +108,13 @@ def gen_config():
         "accountAsDomain": accountAsDomain,
         "invalidTSIGName": invalidTSIGName,
         "missingDNS": missingDNS,
-        "key": {"accountkey": account_key,
-                 "weakkey": weak_key,
-                 "domainkey": domain_key},
-        "csr" : {"domaincsr": domain_csr,
-                 "sancsr": san_csr,
-                 "accountcsr": account_csr}
+        # keys (returned to keep files on system)
+        "accountkey": account_key,
+        "weakkey": weak_key,
+        "domainkey": domain_key,
+        # csr (returned to keep files on system)
+        "domaincsr": domain_csr,
+        "sancsr": san_csr,
+        "accountcsr": account_csr
     }
 

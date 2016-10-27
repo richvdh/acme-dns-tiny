@@ -1,7 +1,8 @@
 import subprocess, os, json, base64, binascii, re, copy, logging
 from urllib.request import urlopen
+from urllib.error import HTTPError
 
-CAURL = os.getenv("GITLABCI_CAURL", "https://acme-staging.api.letsencrypt.org")
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.StreamHandler())
@@ -9,9 +10,9 @@ LOGGER.setLevel(logging.INFO)
             
             
 def delete_account(accountkeypath, log=LOGGER):
-    # helper function base64 encode for jose spec
+    # helper function base64 encode as defined in acme spec
     def _b64(b):
-        return base64.urlsafe_b64encode(b).decode("utf8").replace("=", "")
+        return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
 
     # helper function to run openssl command
     def _openssl(command, options, communicate=None):
@@ -26,7 +27,7 @@ def delete_account(accountkeypath, log=LOGGER):
     def _send_signed_request(url, payload):
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(header)
-        protected["nonce"] = urlopen(CAURL + "/directory").headers["Replay-Nonce"]
+        protected["nonce"] = urlopen(ACMEDirectory).headers["Replay-Nonce"]
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
@@ -36,9 +37,9 @@ def delete_account(accountkeypath, log=LOGGER):
         })
         try:
             resp = urlopen(url, data.encode("utf8"))
-            return resp.getcode(), resp.read()
-        except IOError as e:
-            return getattr(e, "code", None), getattr(e, "read", e.__str__)()
+            return resp.getcode(), resp.read(), resp.getheaders()
+        except HTTPError as httperror:
+            return httperror.getcode(), httperror.read(), httperror.getheaders()
 
     # parse account key to get public key
     log.info("Parsing account key...")
@@ -57,12 +58,28 @@ def delete_account(accountkeypath, log=LOGGER):
         },
     }
     
-    # send request to delete account key
+    # get ACME server configuration from the directory
+    directory = urlopen(ACMEDirectory)
+    acme_config = json.loads(directory.read().decode("utf8"))
+    
+    log.info("Register account to get account URL.") 
+    code, result, headers = _send_signed_request(acme_config["new-reg"], {
+        "resource": "new-reg"
+    })
+
+    if code == 201:
+        account_url = dict(headers).get("Location")
+        log.info("Registered! (account: '{0}')".format(account_url))
+    elif code == 409:
+        account_url = dict(headers).get("Location")
+        log.info("Already registered! (account: '{0}')".format(account_url))
+
     log.info("Delete account...")
-    code, result = _send_signed_request(CAURL + "/acme/new-reg", {
+    code, result, headers = _send_signed_request(account_url, {
         "resource": "reg",
         "delete": True,
     })
-    if code != 200:
+
+    if code not in [200,202]:
         raise ValueError("Error deleting account key: {0} {1}".format(code, result))
     log.info("Account key deleted !")

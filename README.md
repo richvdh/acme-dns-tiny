@@ -9,10 +9,15 @@ validation.
 
 Since it has to have access to your private ACME account key and the
 rights to update the DNS records of your DNS server, this code has been designed
-to be as tiny as possible (currently less than 250 lines).
+to be as tiny as possible (currently less than 300 lines).
 
-The only prerequisites are Python 3, OpenSSL and the dnspython module (with
-release before 1.14.0 (this release have a bug with dynamic DNS updates)).
+The only prerequisites are Python 3, OpenSSL and the dnspython module.
+
+For the dnspython module, be aware that it won't work with release 1.14.0,
+because this one have a bug with dynamic DNS updates.
+You should either use an older version from dnspython3 module (python3 specific
+code) or any release of dnspython module (pyhton2 and python3 merged code) since
+1.15.0.
 
 **PLEASE READ THE SOURCE CODE! YOU MUST TRUST IT!
 IT HANDLES YOUR ACCOUNT PRIVATE KEYS!**
