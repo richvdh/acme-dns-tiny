@@ -2,9 +2,11 @@ import unittest, sys
 from subprocess import Popen, PIPE
 from io import StringIO
 import acme_dns_tiny
-from .config_maker import gen_config
-from .acme_account_delete import delete_account
+from acme_dns_tiny.tests.config_maker import gen_config
+from acme_dns_tiny.tools.acme_account_delete import delete_account
 import logassert
+
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
 class TestModule(unittest.TestCase):
     "Tests for acme_dns_tiny.get_crt()"
@@ -18,7 +20,7 @@ class TestModule(unittest.TestCase):
     @classmethod
     def tearDownClass(self):
         # delete account key registration at end of tests
-        delete_account(self.configs["accountkey"].name)
+        delete_account(self.configs["accountkey"].name, ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
             self.configs[tmpfile].close()

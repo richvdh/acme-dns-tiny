@@ -1,14 +1,12 @@
-import subprocess, os, json, base64, binascii, re, copy, logging
+import argparse, subprocess, os, json, base64, binascii, re, copy, logging
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
-ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
-
-LOGGER = logging.getLogger(__name__)
+LOGGER = logging.getLogger("acme_account_delete")
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
-def delete_account(accountkeypath, log=LOGGER):
+def delete_account(accountkeypath, acme_directory, log=LOGGER):
     # helper function base64 encode as defined in acme spec
     def _b64(b):
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
@@ -27,7 +25,7 @@ def delete_account(accountkeypath, log=LOGGER):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(header)
-        protected["nonce"] = jws_nonce or urlopen(ACMEDirectory).getheader("Replay-Nonce", None)
+        protected["nonce"] = jws_nonce or urlopen(acme_directory).getheader("Replay-Nonce", None)
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
@@ -61,7 +59,7 @@ def delete_account(accountkeypath, log=LOGGER):
     }
     
     # get ACME server configuration from the directory
-    directory = urlopen(ACMEDirectory)
+    directory = urlopen(acme_directory)
     acme_config = json.loads(directory.read().decode("utf8"))
     jws_nonce = None
     
@@ -86,3 +84,31 @@ def delete_account(accountkeypath, log=LOGGER):
     if code not in [200,202]:
         raise ValueError("Error deleting account key: {0} {1}".format(code, result))
     log.info("Account key deleted !")
+
+def main(argv):
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=textwrap.dedent("""\
+            This script *deletes* your account from an ACME server.
+
+            It will need to have access to your private account key, so
+            PLEASE READ THROUGH IT!
+            It's around 150 lines, so it won't take long.
+
+            === Example Usage ===
+            Remove account.key from staging Let's Encrypt:
+            python3 acme_account_delete.py --account-key account.key --acme-directory https://acme-staging.api.letsencrypt.org/directory
+            """)
+    )
+	parser.add_argument("--account-key", required = True, help="path to the private account key to delete")
+	parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
+    parser.add_argument("--quiet", action="store_const",
+    					const=logging.ERROR,
+						help="suppress output except for errors")
+    args = parser.parse_args(argv)
+
+    LOGGER.setLevel(args.quiet or LOGGER.level)
+    account_delete(args.account_key, args.acme_directory)
+
+if __name__ == "__main__":  # pragma: no cover
+    main(sys.argv[1:])
