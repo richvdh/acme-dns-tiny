@@ -20,8 +20,8 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
-		# helper function to sign request with specified key
-		def _sign_request(accountkeypath, protected, payload):
+    # helper function to sign request with specified key
+    def _sign_request(accountkeypath, protected, payload):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected["nonce"] = jws_nonce or urlopen(acme_directory).getheader("Replay-Nonce", None)
@@ -32,11 +32,11 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             "header": header, "protected": protected64,
             "payload": payload64, "signature": _b64(signature),
         })
-				return signedjws
+        return signedjws
 
     # helper function make signed requests
     def _send_signed_request(accountkeypath, protected, url, payload):
-		    data = _sign_request(accountkeypath, protected, payload)
+            data = _sign_request(accountkeypath, protected, payload)
         try:
             resp = urlopen(url, data.encode("utf8"))
         except HTTPError as httperror:
@@ -63,7 +63,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     accountkey_json = json.dumps(jws_header["jwk"], sort_keys=True, separators=(",", ":"))
     thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
     
-		log.info("Parsing new account key...")
+    log.info("Parsing new account key...")
     newaccountkey = _openssl("rsa", ["-in", new_accountkeypath, "-noout", "-text"])
     pub_hex, pub_exp = re.search(
         r"modulus:\n\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
@@ -89,15 +89,15 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         "resource": "new-reg"
     })
 
-		if code not in [201, 409]
-		    raise ValueError("Error getting account URL: {0} {1}".format(code,result)
+    if code not in [201, 409]
+        raise ValueError("Error getting account URL: {0} {1}".format(code,result)
     account_url = dict(headers).get("Location")
 
     log.info("Rolls over account key...")
     code, result, headers = _send_signed_request(new_accountkeypath, new_jws_header, account_url, {
         "resource": "reg",
-				"newkey": _sign_request(new_accountkeypath, new_jws_header, {
-				                        "resource": "reg",
+        "newkey": _sign_request(new_accountkeypath, new_jws_header, {
+                                "resource": "reg",
                                 "oldkey": _b64(thumbprint)})
     })
 
