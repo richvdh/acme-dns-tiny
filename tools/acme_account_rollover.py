@@ -28,15 +28,15 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
-        signedjws = json.dumps({
+        signedjws = {
             "header": jwsheader, "protected": protected64,
             "payload": payload64, "signature": _b64(signature),
-        })
+        }
         return signedjws
 
     # helper function make signed requests
     def _send_signed_request(accountkeypath, jwsheader, protected, url, payload):
-        data = _sign_request(accountkeypath, jwsheader, protected, payload)
+        data = json.dumps(_sign_request(accountkeypath, jwsheader, protected, payload))
         try:
             resp = urlopen(url, data.encode("utf8"))
         except HTTPError as httperror:
@@ -89,18 +89,17 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         "resource": "new-reg"
     })
 
-    if code not in [201, 409]
-        raise ValueError("Error getting account URL: {0} {1}".format(code,result)
+    if code not in [201, 409]:
+        raise ValueError("Error getting account URL: {0} {1}".format(code,result))
     account_url = dict(headers).get("Location")
 
+    outer_payload = _sign_request(new_accountkeypath, new_jws_header, {
+        "url": acme_config["key-change"],
+        "account": account_url,
+        "newKey": _b64(thumbprint)})
+    outer_payload["resource"] = "key-change"
     log.info("Rolls over account key...")
-    code, result, headers = _send_signed_request(new_accountkeypath, new_jws_header, acme_config["key-change"], {
-        "resource": "key-change",
-        _sign_request(new_accountkeypath, new_jws_header, {
-                        "url": acme_config["key-change"],
-                        "account": account_url,
-                        "newKey": _b64(thumbprint)})
-    })
+    code, result, headers = _send_signed_request(new_accountkeypath, new_jws_header, acme_config["key-change"], outer_payload)
 
     if code != 200:
         raise ValueError("Error rolling over account key: {0} {1}".format(code, result))
