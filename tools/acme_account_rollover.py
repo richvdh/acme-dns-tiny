@@ -21,7 +21,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         return out
 
     # helper function to sign request with specified key
-    def _sign_request(accountkeypath, protected, payload):
+    def _sign_request(accountkeypath, jwsheader, protected, payload):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected["nonce"] = jws_nonce or urlopen(acme_directory).getheader("Replay-Nonce", None)
@@ -29,14 +29,14 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
         signedjws = json.dumps({
-            "header": header, "protected": protected64,
+            "header": jwsheader, "protected": protected64,
             "payload": payload64, "signature": _b64(signature),
         })
         return signedjws
 
     # helper function make signed requests
-    def _send_signed_request(accountkeypath, protected, url, payload):
-            data = _sign_request(accountkeypath, protected, payload)
+    def _send_signed_request(accountkeypath, jwsheader, protected, url, payload):
+        data = _sign_request(accountkeypath, jwsheader, protected, payload)
         try:
             resp = urlopen(url, data.encode("utf8"))
         except HTTPError as httperror:
@@ -94,11 +94,12 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     account_url = dict(headers).get("Location")
 
     log.info("Rolls over account key...")
-    code, result, headers = _send_signed_request(new_accountkeypath, new_jws_header, account_url, {
-        "resource": "reg",
-        "newkey": _sign_request(new_accountkeypath, new_jws_header, {
-                                "resource": "reg",
-                                "oldkey": _b64(thumbprint)})
+    code, result, headers = _send_signed_request(new_accountkeypath, new_jws_header, acme_config["key-change"], {
+        "resource": "key-change",
+        _sign_request(new_accountkeypath, new_jws_header, {
+                        "url": acme_config["key-change"],
+                        "account": account_url,
+                        "newKey": _b64(thumbprint)})
     })
 
     if code != 200:
