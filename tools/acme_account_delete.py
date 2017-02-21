@@ -100,11 +100,11 @@ def main(argv):
             python3 acme_account_delete.py --account-key account.key --acme-directory https://acme-staging.api.letsencrypt.org/directory
             """)
     )
-	parser.add_argument("--account-key", required = True, help="path to the private account key to delete")
-	parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
+    parser.add_argument("--account-key", required = True, help="path to the private account key to delete")
+    parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
     parser.add_argument("--quiet", action="store_const",
-    					const=logging.ERROR,
-						help="suppress output except for errors")
+                        const=logging.ERROR,
+                        help="suppress output except for errors")
     args = parser.parse_args(argv)
 
     LOGGER.setLevel(args.quiet or LOGGER.level)
