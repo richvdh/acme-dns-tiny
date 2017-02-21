@@ -3,7 +3,7 @@ jessie:
   before_script:
     - pip3 install -r tests/requirements.txt
   script:
-    - coverage run --source ./ -m unittest -v tests/
+    - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny
     - coverage report --include=acme_dns_tiny.py
 
 jessie_backport:
@@ -11,6 +11,6 @@ jessie_backport:
   before_script:
     - pip3 install -r tests/requirements.txt
   script:
-    - coverage run --source ./ -m unittest -v tests/
+    - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny
     - coverage report --include=acme_dns_tiny.py
 
