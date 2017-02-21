@@ -15,12 +15,12 @@ TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
 TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
 
 # generate account and domain keys
-def gen_config():
+def generate_acme_dns_tiny_config():
     # good account key
     account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
 
-    # weak 1024 bit key
+    # weak 1024 bit account key
     weak_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", weak_key.name, "1024"]).wait()
 
@@ -44,7 +44,7 @@ def gen_config():
     account_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
         "-subj", "/CN={0}".format(DOMAIN), "-out", account_csr.name]).wait()
-    
+
     # Default test configuration
     config = configparser.ConfigParser()
     config.read("./example.ini".format(DOMAIN))
@@ -58,47 +58,47 @@ def gen_config():
     config["DNS"]["Host"] = DNSHOST
     config["DNS"]["Port"] = DNSPORT
     config["DNS"]["Zone"] = DNSZONE
-    
+
     goodCName = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = domain_csr.name
     with open(goodCName.name, 'w') as configfile:
         config.write(configfile)
-    
+
     dnsHostIP = NamedTemporaryFile()
     config["DNS"]["Host"] = DNSHOSTIP
     with open(dnsHostIP.name, 'w') as configfile:
         config.write(configfile)
     config["DNS"]["Host"] = DNSHOST
-    
+
     goodSAN = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = san_csr.name
     with open(goodSAN.name, 'w') as configfile:
         config.write(configfile)
-    
+
     weakKey = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = weak_key.name
     config["acmednstiny"]["CSRFile"] = domain_csr.name
     with open(weakKey.name, 'w') as configfile:
         config.write(configfile)
-        
+
     accountAsDomain = NamedTemporaryFile()
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = account_csr.name
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
-    
+
     invalidTSIGName = NamedTemporaryFile()
     config["TSIGKeyring"]["KeyName"] = "{0}.invalid".format(TSIGKEYNAME)
     with open(invalidTSIGName.name, 'w') as configfile:
         config.write(configfile)
-    
+
     missingDNS = NamedTemporaryFile()
     config["DNS"] = {}
     with open(missingDNS.name, 'w') as configfile:
         config.write(configfile)
-    
+
     return {
         # configs
         "goodCName": goodCName,
