@@ -1,4 +1,4 @@
-import unittest, sys
+import unittest, sys, os
 from subprocess import Popen, PIPE
 from io import StringIO
 import acme_dns_tiny

@@ -1,4 +1,4 @@
-import argparse, subprocess, os, json, base64, binascii, re, copy, logging
+import argparse, subprocess, json, base64, binascii, re, copy, logging
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
