@@ -2,8 +2,8 @@ import unittest, sys
 from subprocess import Popen, PIPE
 from io import StringIO
 import acme_dns_tiny
-from acme_dns_tiny.tests.config_maker import gen_config
-from acme_dns_tiny.tools.acme_account_delete import delete_account
+from tests.config_maker import gen_config
+from tools.acme_account_delete import delete_account
 import logassert
 
 ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
