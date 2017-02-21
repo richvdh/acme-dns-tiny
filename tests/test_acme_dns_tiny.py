@@ -14,7 +14,7 @@ class TestACMEDNSTiny(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.configs = generate_acme_dns_tiny_config()
-        super(TestModule, self).setUpClass()
+        super(TestACMEDNSTiny, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
     @classmethod
@@ -24,7 +24,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         # close temp files correctly
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
-        super(TestModule, self).tearDownClass()
+        super(TestACMEDNSTiny, self).tearDownClass()
 
     def setUp(self):
         logassert.setup(self, 'acme_dns_tiny_logger')
