@@ -62,7 +62,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     }
     accountkey_json = json.dumps(jws_header["jwk"], sort_keys=True, separators=(",", ":"))
     thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
-    
+
     log.info("Parsing new account key...")
     newaccountkey = _openssl("rsa", ["-in", new_accountkeypath, "-noout", "-text"])
     pub_hex, pub_exp = re.search(
@@ -78,13 +78,13 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
         },
     }
-    
+
     # get ACME server configuration from the directory
     directory = urlopen(acme_directory)
     acme_config = json.loads(directory.read().decode("utf8"))
     jws_nonce = None
-    
-    log.info("Register account to get account URL.") 
+
+    log.info("Register account to get account URL.")
     code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["new-reg"], {
         "resource": "new-reg"
     })
@@ -108,17 +108,16 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
 def main(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent("""\
-            This script *rolls over* your account key on an ACME server.
+        description="""
+This script *rolls over* your account key on an ACME server.
 
-            It will need to have access to your private account key, so
-            PLEASE READ THROUGH IT!
-            It's around 150 lines, so it won't take long.
+It will need to have access to your private account key, so
+PLEASE READ THROUGH IT!
+It's around 150 lines, so it won't take long.
 
-            === Example Usage ===
-            Remove account.key from staging Let's Encrypt:
-            python3 acme_account_delete.py --current-account-key account.key --new-account-key newaccount.key --acme-directory https://acme-staging.api.letsencrypt.org/directory
-            """)
+=== Example Usage ===
+Remove account.key from staging Let's Encrypt:
+python3 acme_account_delete.py --current-account-key account.key --new-account-key newaccount.key --acme-directory https://acme-staging.api.letsencrypt.org/directory"""
     )
     parser.add_argument("--current-account-key", required = True, help="path to the current private account key")
     parser.add_argument("--new-account-key", required = True, help="path to the newer private account key to register")
