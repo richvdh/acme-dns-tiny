@@ -118,3 +118,16 @@ def generate_acme_dns_tiny_config():
         "accountcsr": account_csr
     }
 
+# generate account and domain keys
+def generate_account_rollover_config():
+    # Old account key
+    old_account_key = NamedTemporaryFile()
+    Popen(["openssl", "genrsa", "-out", old_account_key.name, "2048"]).wait()
+    # New account key
+    new_account_key = NamedTemporaryFile()
+    Popen(["openssl", "genrsa", "-out", new_account_key.name, "2048"]).wait()
+    return {
+        # keys (returned to keep files on system)
+        "oldaccountkey": old_account_key,
+        "newaccountkey": new_account_key
+    }

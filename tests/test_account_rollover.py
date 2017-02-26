@@ -1,0 +1,41 @@
+import unittest, sys, os
+from subprocess import Popen, PIPE
+from io import StringIO
+import acme_dns_tiny
+from tests.config_factory import generate_account_rollover_config
+from tools.acme_account_delete import delete_account
+import tools.acme_account_rollover
+import logassert
+
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
+
+class TestACMEAccountRollover(unittest.TestCase):
+    "Tests for acme_account_key_rollover"
+
+    @classmethod
+    def setUpClass(self):
+        self.configs = generate_account_rollover_config()
+        super(TestACMEAccountRollover, self).setUpClass()
+
+    # To clean ACME staging server and close correctly temporary files
+    @classmethod
+    def tearDownClass(self):
+        # delete account key registration at end of tests
+        delete_account(self.configs["newaccountkey"].name, ACMEDirectory)
+        # close temp files correctly
+        for tmpfile in self.configs:
+            self.configs[tmpfile].close()
+        super(TestACMEAccountRollover, self).tearDownClass()
+
+    def setUp(self):
+        logassert.setup(self, 'acme_account_rollover')
+
+    def test_success_account_rollover(self):
+        """ Test success account key rollover """
+        tools.acme_account_rollover.main(["--current-account-key", self.configs['oldaccountkey'].name,
+                                          "--new-account-key", self.configs['newaccountkey'].name,
+                                          "--acme-directory", ACMEDirectory])
+        self.assertLoggedInfo("Account keys rolled over !")
+
+if __name__ == "__main__":
+    unittest.main()
