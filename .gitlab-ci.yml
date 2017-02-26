@@ -4,7 +4,8 @@ jessie:
     - pip3 install -r tests/requirements.txt
   script:
     - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny
-    - coverage report --include=acme_dns_tiny.py
+    - coverage run --source ./ -m unittest -v tests.test_acme_account_rollover
+    - coverage report --include=acme_dns_tiny.py --include=tools/acme_account_rollover
 
 jessie_backport:
   image: adt-jessie_dnspython3_1.15-bpo
@@ -12,5 +13,6 @@ jessie_backport:
     - pip3 install -r tests/requirements.txt
   script:
     - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny
-    - coverage report --include=acme_dns_tiny.py
+    - coverage run --source ./ -m unittest -v tests.test_acme_account_rollover
+    - coverage report --include=acme_dns_tiny.py --include=tools/acme_account_rollover
 

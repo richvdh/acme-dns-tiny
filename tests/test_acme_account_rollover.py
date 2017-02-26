@@ -2,7 +2,7 @@ import unittest, sys, os
 from subprocess import Popen, PIPE
 from io import StringIO
 import acme_dns_tiny
-from tests.config_factory import generate_account_rollover_config
+from tests.config_factory import generate_acme_account_rollover_config
 from tools.acme_account_delete import delete_account
 import tools.acme_account_rollover
 import logassert
@@ -14,7 +14,7 @@ class TestACMEAccountRollover(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.configs = generate_account_rollover_config()
+        self.configs = generate_acme_account_rollover_config()
         super(TestACMEAccountRollover, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files

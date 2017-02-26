@@ -119,7 +119,7 @@ def generate_acme_dns_tiny_config():
     }
 
 # generate account and domain keys
-def generate_account_rollover_config():
+def generate_acme_account_rollover_config():
     # Old account key
     old_account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", old_account_key.name, "2048"]).wait()
