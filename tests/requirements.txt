@@ -2,4 +2,3 @@ coverage
 logassert
 argparse
 configparser
-dnspython>=1.15
