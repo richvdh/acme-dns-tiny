@@ -65,17 +65,17 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
 
     log.info("Parsing new account key...")
     newaccountkey = _openssl("rsa", ["-in", new_accountkeypath, "-noout", "-text"])
-    pub_hex, pub_exp = re.search(
+    newpub_hex, newpub_exp = re.search(
         r"modulus:\n\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
-        accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
-    pub_exp = "{0:x}".format(int(pub_exp))
-    pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
+        newaccountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
+    newpub_exp = "{0:x}".format(int(newpub_exp))
+    newpub_exp = "0{0}".format(newpub_exp) if len(newpub_exp) % 2 else newpub_exp
     new_jws_header = {
         "alg": "RS256",
         "jwk": {
-            "e": _b64(binascii.unhexlify(pub_exp.encode("utf-8"))),
+            "e": _b64(binascii.unhexlify(newpub_exp.encode("utf-8"))),
             "kty": "RSA",
-            "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
+            "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", newpub_hex).encode("utf-8"))),
         },
     }
 
@@ -96,7 +96,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     outer_payload = _sign_request(new_accountkeypath, new_jws_header, {
         "url": acme_config["key-change"],
         "account": account_url,
-        "newKey": jws_header["jwk"]})
+        "newKey": new_jws_header["jwk"]})
     outer_payload["resource"] = "key-change"
     log.info("Rolls over account key...")
     code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["key-change"], outer_payload)
