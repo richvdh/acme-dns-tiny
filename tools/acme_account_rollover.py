@@ -33,6 +33,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             "header": jwsheader, "protected": protected64,
             "payload": payload64, "signature": _b64(signature),
         }
+        log.info("Signed JWS: {0}".format(signedjws))
         return signedjws
 
     # helper function make signed requests
@@ -61,8 +62,6 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
         },
     }
-    accountkey_json = json.dumps(jws_header["jwk"], sort_keys=True, separators=(",", ":"))
-    thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
 
     log.info("Parsing new account key...")
     newaccountkey = _openssl("rsa", ["-in", new_accountkeypath, "-noout", "-text"])
@@ -79,7 +78,6 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
         },
     }
-    new_thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
 
     # get ACME server configuration from the directory
     directory = urlopen(acme_directory)
@@ -98,10 +96,10 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     outer_payload = _sign_request(new_accountkeypath, new_jws_header, {
         "url": acme_config["key-change"],
         "account": account_url,
-        "newKey": new_thumbprint})
+        "newKey": jws_header["jwk"]})
     outer_payload["resource"] = "key-change"
     log.info("Rolls over account key...")
-    code, result, headers = _send_signed_request(new_accountkeypath, new_jws_header, acme_config["key-change"], outer_payload)
+    code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["key-change"], outer_payload)
 
     if code != 200:
         raise ValueError("Error rolling over account key: {0} {1}".format(code, result))
