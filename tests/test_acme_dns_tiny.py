@@ -1,28 +1,30 @@
-import unittest, sys
+import unittest, sys, os
 from subprocess import Popen, PIPE
 from io import StringIO
 import acme_dns_tiny
-from .config_maker import gen_config
-from .acme_account_delete import delete_account
+from tests.config_factory import generate_acme_dns_tiny_config
+from tools.acme_account_delete import account_delete
 import logassert
 
-class TestModule(unittest.TestCase):
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
+
+class TestACMEDNSTiny(unittest.TestCase):
     "Tests for acme_dns_tiny.get_crt()"
-    
+
     @classmethod
     def setUpClass(self):
-        self.configs = gen_config()
-        super(TestModule, self).setUpClass()
+        self.configs = generate_acme_dns_tiny_config()
+        super(TestACMEDNSTiny, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
         # delete account key registration at end of tests
-        delete_account(self.configs["accountkey"].name)
+        account_delete(self.configs["accountkey"].name, ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
-        super(TestModule, self).tearDownClass()
+        super(TestACMEDNSTiny, self).tearDownClass()
 
     def setUp(self):
         logassert.setup(self, 'acme_dns_tiny_logger')
@@ -39,7 +41,7 @@ class TestModule(unittest.TestCase):
             stdout=PIPE, stderr=PIPE).communicate(crt)
         self.assertIn("BEGIN", crt.decode("utf8"))
         self.assertIn("Issuer", out.decode("utf8"))
-        
+
     def test_success_dnshost_ip(self):
         """ When DNS Host is an IP, DNS resolution have to fail without error """
         old_stdout = sys.stdout
