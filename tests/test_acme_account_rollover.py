@@ -10,7 +10,7 @@ import logassert
 ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
 class TestACMEAccountRollover(unittest.TestCase):
-    "Tests for acme_account_key_rollover"
+    "Tests for acme_account_rollover"
 
     @classmethod
     def setUpClass(self):
