@@ -29,7 +29,7 @@ class TestACMEAccountDelete(unittest.TestCase):
     def test_success_account_delete(self):
         """ Test success account key delete """
         tools.acme_account_delete.main(["--account-key", self.accountkey.name,
-                                                "--acme-directory", ACMEDirectory])
+                                        "--acme-directory", ACMEDirectory])
         self.assertLoggedInfo("Account key deleted !")
 
 if __name__ == "__main__":
