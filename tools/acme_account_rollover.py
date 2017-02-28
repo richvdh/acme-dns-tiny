@@ -65,7 +65,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             return resp.getcode(), resp.read(), resp.getheaders()
 
     log.info("Parsing current account key...")
-    cur_jws_header = _jws_header(accountkeypath)
+    jws_header = _jws_header(accountkeypath)
 
     log.info("Parsing new account key...")
     new_jws_header = _jws_header(new_accountkeypath)
@@ -76,7 +76,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     jws_nonce = None
 
     log.info("Register account to get account URL.")
-    code, result, headers = _send_signed_request(accountkeypath, cur_jws_header, acme_config["new-reg"], {
+    code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["new-reg"], {
         "resource": "new-reg"
     })
 
@@ -90,7 +90,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         "account": account_url,
         "newKey": new_jws_header["jwk"]})
     outer_payload["resource"] = "key-change" # currently needed by boulder implementation
-    code, result, headers = _send_signed_request(accountkeypath, cur_jws_header, acme_config["key-change"], outer_payload)
+    code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["key-change"], outer_payload)
 
     if code != 200:
         raise ValueError("Error rolling over account key: {0} {1}".format(code, result))
@@ -107,17 +107,17 @@ PLEASE READ THROUGH IT!
 It's around 150 lines, so it won't take long.
 
 === Example Usage ===
-Remove account.key from staging Let's Encrypt:
-python3 acme_account_delete.py --current-account-key account.key --new-account-key newaccount.key --acme-directory https://acme-staging.api.letsencrypt.org/directory"""
+Rollover account.keys from account.key to newaccount.key:
+python3 acme_account_rollover.py --current account.key --new newaccount.key --acme-directory https://acme-staging.api.letsencrypt.org/directory"""
     )
-    parser.add_argument("--current-account-key", required = True, help="path to the current private account key")
-    parser.add_argument("--new-account-key", required = True, help="path to the newer private account key to register")
+    parser.add_argument("--current", required = True, help="path to the current private account key")
+    parser.add_argument("--new", required = True, help="path to the newer private account key to register")
     parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
     parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="suppress output except for errors")
     args = parser.parse_args(argv)
 
     LOGGER.setLevel(args.quiet or LOGGER.level)
-    account_rollover(args.current_account_key, args.new_account_key, args.acme_directory)
+    account_rollover(args.current, args.new, args.acme_directory)
 
 if __name__ == "__main__":  # pragma: no cover
     main(sys.argv[1:])

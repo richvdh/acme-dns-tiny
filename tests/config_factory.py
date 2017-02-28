@@ -118,7 +118,7 @@ def generate_acme_dns_tiny_config():
         "accountcsr": account_csr
     }
 
-# generate account and domain keys
+# generate two account keys to roll over them
 def generate_acme_account_rollover_config():
     # Old account key
     old_account_key = NamedTemporaryFile()

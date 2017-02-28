@@ -32,8 +32,8 @@ class TestACMEAccountRollover(unittest.TestCase):
 
     def test_success_account_rollover(self):
         """ Test success account key rollover """
-        tools.acme_account_rollover.main(["--current-account-key", self.configs['oldaccountkey'].name,
-                                          "--new-account-key", self.configs['newaccountkey'].name,
+        tools.acme_account_rollover.main(["--current", self.configs['oldaccountkey'].name,
+                                          "--new", self.configs['newaccountkey'].name,
                                           "--acme-directory", ACMEDirectory])
         self.assertLoggedInfo("Account keys rolled over !")
 
