@@ -131,3 +131,10 @@ def generate_acme_account_rollover_config():
         "oldaccountkey": old_account_key,
         "newaccountkey": new_account_key
     }
+
+# generate an account key to delete it
+def generate_acme_account_delete_config():
+    # account key
+    account_key = NamedTemporaryFile()
+    Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
+    return account_key

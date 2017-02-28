@@ -6,7 +6,7 @@ LOGGER = logging.getLogger("acme_account_delete")
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
-def delete_account(accountkeypath, acme_directory, log=LOGGER):
+def account_delete(accountkeypath, acme_directory, log=LOGGER):
     # helper function base64 encode as defined in acme spec
     def _b64(b):
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
@@ -24,13 +24,13 @@ def delete_account(accountkeypath, acme_directory, log=LOGGER):
     def _send_signed_request(url, payload):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
-        protected = copy.deepcopy(header)
+        protected = copy.deepcopy(jws_header)
         protected["nonce"] = jws_nonce or urlopen(acme_directory).getheader("Replay-Nonce", None)
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
         data = json.dumps({
-            "header": header, "protected": protected64,
+            "header": jws_header, "protected": protected64,
             "payload": payload64, "signature": _b64(signature),
         })
         try:
@@ -49,7 +49,7 @@ def delete_account(accountkeypath, acme_directory, log=LOGGER):
         accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
     pub_exp = "{0:x}".format(int(pub_exp))
     pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
-    header = {
+    jws_header = {
         "alg": "RS256",
         "jwk": {
             "e": _b64(binascii.unhexlify(pub_exp.encode("utf-8"))),
@@ -88,17 +88,17 @@ def delete_account(accountkeypath, acme_directory, log=LOGGER):
 def main(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent("""\
-            This script *deletes* your account from an ACME server.
+        description="""
+This script *deletes* your account from an ACME server.
 
-            It will need to have access to your private account key, so
-            PLEASE READ THROUGH IT!
-            It's around 150 lines, so it won't take long.
+It will need to have access to your private account key, so
+PLEASE READ THROUGH IT!
+It's around 150 lines, so it won't take long.
 
-            === Example Usage ===
-            Remove account.key from staging Let's Encrypt:
-            python3 acme_account_delete.py --account-key account.key --acme-directory https://acme-staging.api.letsencrypt.org/directory
-            """)
+=== Example Usage ===
+Remove account.key from staging Let's Encrypt:
+python3 acme_account_delete.py --account-key account.key --acme-directory https://acme-staging.api.letsencrypt.org/directory
+"""
     )
     parser.add_argument("--account-key", required = True, help="path to the private account key to delete")
     parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
