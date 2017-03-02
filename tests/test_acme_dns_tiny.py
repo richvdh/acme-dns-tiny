@@ -47,8 +47,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         result = acme_dns_tiny.main([self.configs['dnsHostIP'].name])
-        self.assertLoggedInfo("DNS IPv4 record not found for configured dns host.")
-        self.assertLoggedInfo("DNS IPv4 and IPv6 records not found for configured dns host.")
+        self.assertLoggedInfo("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.")
         sys.stdout.seek(0)
         crt = sys.stdout.read().encode("utf8")
         sys.stdout = old_stdout
