@@ -131,12 +131,12 @@ def get_crt(config, log=LOGGER):
 
     code, result, headers = _send_signed_request(acme_config["new-reg"], reg_info)
     if code == 201:
-        log.info("Registered! (account: '{0}')".format(account_url))
         account_url = dict(headers).get("Location")
+        log.info("Registered! (account: '{0}')".format(account_url))
         reg_received_contact = reg_info.get("contact")
     elif code == 409:
-        log.info("Already registered! (account: '{0}')".format(account_url))
         account_url = dict(headers).get("Location")
+        log.info("Already registered! (account: '{0}')".format(account_url))
         # Client should send empty payload to query account information
         code, result, headers = _send_signed_request(account_url, {"resource":"reg"})
         account_info = json.loads(result.decode("utf8"))
