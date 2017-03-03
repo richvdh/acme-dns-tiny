@@ -8,6 +8,7 @@ jessie:
   script:
     - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny tests.test_acme_account_rollover tests.test_acme_account_delete
     - coverage report --include=acme_dns_tiny.py,tools/acme_account_rollover.py,tools/acme_account_delete.py
+    - coverage html
 
 jessie_backport:
   image: adt-jessie_dnspython3_1.15-bpo
@@ -16,4 +17,4 @@ jessie_backport:
   script:
     - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny tests.test_acme_account_rollover tests.test_acme_account_delete
     - coverage report --include=acme_dns_tiny.py,tools/acme_account_rollover.py,tools/acme_account_delete.py
-
+    - coverage html

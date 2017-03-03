@@ -1,6 +1,7 @@
 import unittest, sys, os
 from subprocess import Popen, PIPE
 from io import StringIO
+import dns.version
 import acme_dns_tiny
 from tests.config_factory import generate_acme_dns_tiny_config
 from tools.acme_account_delete import account_delete
@@ -13,6 +14,9 @@ class TestACMEDNSTiny(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
+        "Init acme_dns_tiny with python modules:"
+        "  - dns python:{0}\n".format(dns.version.version)
+        logassert.setup(self, 'acme_dns_tiny_logger')
         self.configs = generate_acme_dns_tiny_config()
         super(TestACMEDNSTiny, self).setUpClass()
 
@@ -25,9 +29,6 @@ class TestACMEDNSTiny(unittest.TestCase):
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
         super(TestACMEDNSTiny, self).tearDownClass()
-
-    def setUp(self):
-        logassert.setup(self, 'acme_dns_tiny_logger')
 
     def test_success_cn(self):
         """ Successfully issue a certificate via common name """
