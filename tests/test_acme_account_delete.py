@@ -13,6 +13,7 @@ class TestACMEAccountDelete(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
+        logassert.setup(self, 'acme_account_delete')
         self.accountkey = generate_acme_account_delete_config()
         super(TestACMEAccountDelete, self).setUpClass()
 
@@ -22,9 +23,6 @@ class TestACMEAccountDelete(unittest.TestCase):
         # close temp files correctly
         self.accountkey.close()
         super(TestACMEAccountDelete, self).tearDownClass()
-
-    def setUp(self):
-        logassert.setup(self, 'acme_account_delete')
 
     def test_success_account_delete(self):
         """ Test success account key delete """

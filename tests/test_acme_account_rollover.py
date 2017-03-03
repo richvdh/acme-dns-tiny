@@ -14,6 +14,7 @@ class TestACMEAccountRollover(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
+        logassert.setup(self, 'acme_account_rollover')
         self.configs = generate_acme_account_rollover_config()
         super(TestACMEAccountRollover, self).setUpClass()
 
@@ -26,9 +27,6 @@ class TestACMEAccountRollover(unittest.TestCase):
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
         super(TestACMEAccountRollover, self).tearDownClass()
-
-    def setUp(self):
-        logassert.setup(self, 'acme_account_rollover')
 
     def test_success_account_rollover(self):
         """ Test success account key rollover """
