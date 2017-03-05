@@ -14,8 +14,8 @@ class TestACMEDNSTiny(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        "Init acme_dns_tiny with python modules:"
-        "  - dns python:{0}\n".format(dns.version.version)
+        print("Init acme_dns_tiny with python modules:".join(os.linesep))
+        print("  - dns python:{0}{1}".format(dns.version.version, os.linesep))
         logassert.setup(self, 'acme_dns_tiny_logger')
         self.configs = generate_acme_dns_tiny_config()
         super(TestACMEDNSTiny, self).setUpClass()
