@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
+import os, argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
 import dns.resolver, dns.tsigkeyring, dns.update
 from configparser import ConfigParser
 from urllib.request import urlopen
@@ -87,7 +87,7 @@ def get_crt(config, log=LOGGER):
     log.info("Parsing account key looking for public key.")
     accountkey = _openssl("rsa", ["-in", config["acmednstiny"]["AccountKeyFile"], "-noout", "-text"])
     pub_hex, pub_exp = re.search(
-        r"modulus:[\r\n]+\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
+        r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
         accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
     pub_exp = "{0:x}".format(int(pub_exp))
     pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
@@ -109,7 +109,7 @@ def get_crt(config, log=LOGGER):
     common_name = re.search(r"Subject:.*? CN=([^\s,;/]+)", csr)
     if common_name is not None:
         domains.add(common_name.group(1))
-    subject_alt_names = re.search(r"X509v3 Subject Alternative Name: [\r\n]+ +([^\r\n]+)[\r\n]+", csr, re.MULTILINE | re.DOTALL)
+    subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \r?\n+ +([^\r\n]+)\r?\n+", csr, re.MULTILINE | re.DOTALL)
     if subject_alt_names is not None:
         for san in subject_alt_names.group(1).split(", "):
             if san.startswith("DNS:"):
@@ -240,7 +240,7 @@ def get_crt(config, log=LOGGER):
     })
     if code != 201:
         raise ValueError("Error signing certificate: {0} {1}".format(code, result))
-    certificate = "\n".join(textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
+    certificate = "{0}{1}".format(os.linesep, textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
 
     # get the parent certificate which had created this one
     certificate_parent_url = _get_url_link(headers, 'up')
@@ -248,10 +248,10 @@ def get_crt(config, log=LOGGER):
     if resp.getcode() not in [200, 201]:
         raise ValueError("Error getting certificate chain from {0}: {1} {2}".format(
             certificate_parent_url, code, resp.read()))
-    intermediary_certificate = "\n".join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
+    intermediary_certificate = "{0}{1}".format(os.linesep, textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
 
     log.info("Certificate signed and received.")
-    return "".join(["""-----BEGIN CERTIFICATE-----\n{0}\n-----END CERTIFICATE-----\n""".format(cert) for cert in [certificate, intermediary_certificate]])
+    return "".join(["""-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}""".format(os.linesep, cert) for cert in [certificate, intermediary_certificate]])
 
 def main(argv):
     parser = argparse.ArgumentParser(

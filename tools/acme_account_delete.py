@@ -1,4 +1,4 @@
-import argparse, subprocess, json, base64, binascii, re, copy, logging
+import os, argparse, subprocess, json, base64, binascii, re, copy, logging
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
@@ -45,7 +45,7 @@ def account_delete(accountkeypath, acme_directory, log=LOGGER):
     log.info("Parsing account key...")
     accountkey = _openssl("rsa", ["-in", accountkeypath, "-noout", "-text"])
     pub_hex, pub_exp = re.search(
-        r"modulus:\n\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
+        r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
         accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
     pub_exp = "{0:x}".format(int(pub_exp))
     pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
