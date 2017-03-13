@@ -30,55 +30,62 @@ class TestACMEDNSTiny(unittest.TestCase):
             self.configs[tmpfile].close()
         super(TestACMEDNSTiny, self).tearDownClass()
 
+    # helper function to run openssl command
+    @classmethod
+    def _openssl(command, options, communicate=None):
+        openssl = subprocess.Popen(["openssl", command] + options,
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = openssl.communicate(communicate)
+        if openssl.returncode != 0:
+            raise IOError("OpenSSL Error: {0}".format(err))
+        return out
+
     def test_success_cn(self):
         """ Successfully issue a certificate via common name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        result = acme_dns_tiny.main([self.configs['goodCName'].name])
-        sys.stdout.seek(0)
-        crt = sys.stdout.read().encode("utf8")
+        acme_dns_tiny.main([self.configs['goodCName'].name])
+        certchain = sys.stdout.getvalue()
+        sys.stdout.close()
         sys.stdout = old_stdout
-        out, err = Popen(["openssl", "x509", "-text", "-noout"], stdin=PIPE,
-            stdout=PIPE, stderr=PIPE).communicate(crt)
-        self.assertIn("BEGIN", crt.decode("utf8"))
-        self.assertIn("Issuer", out.decode("utf8"))
+        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        self.assertIn("BEGIN", certchain)
+        self.assertIn("Issuer", readablecertchain)
 
     def test_success_dnshost_ip(self):
         """ When DNS Host is an IP, DNS resolution have to fail without error """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        result = acme_dns_tiny.main([self.configs['dnsHostIP'].name])
+        acme_dns_tiny.main([self.configs['dnsHostIP'].name])
         self.assertLoggedInfo("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.")
-        sys.stdout.seek(0)
-        crt = sys.stdout.read().encode("utf8")
+        certchain = sys.stdout.getvalue()
+        sys.stdout.close()
         sys.stdout = old_stdout
-        out, err = Popen(["openssl", "x509", "-text", "-noout"], stdin=PIPE,
-            stdout=PIPE, stderr=PIPE).communicate(crt)
-        self.assertIn("BEGIN", crt.decode("utf8"))
-        self.assertIn("Issuer", out.decode("utf8"))
+        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        self.assertIn("BEGIN", certchain.decode("utf8"))
+        self.assertIn("Issuer", readablecertchain.decode("utf8"))
 
     def test_success_san(self):
         """ Successfully issue a certificate via subject alt name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        result = acme_dns_tiny.main([self.configs['goodSAN'].name])
-        sys.stdout.seek(0)
-        crt = sys.stdout.read().encode("utf8")
+        acme_dns_tiny.main([self.configs['goodSAN'].name])
+        certchain = sys.stdout.getvalue()
+        sys.stdout.close()
         sys.stdout = old_stdout
-        out, err = Popen(["openssl", "x509", "-text", "-noout"], stdin=PIPE,
-            stdout=PIPE, stderr=PIPE).communicate(crt)
-        self.assertIn("BEGIN", crt.decode("utf8"))
-        self.assertIn("Issuer", out.decode("utf8"))
+        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        self.assertIn("BEGIN", certchain.decode("utf8"))
+        self.assertIn("Issuer", readablecertchain.decode("utf8"))
+
 
     def test_success_cli(self):
         """ Successfully issue a certificate via command line interface """
-        crt, err = Popen([
+        certchain, err = Popen([
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=PIPE, stderr=PIPE).communicate()
-        out, err = Popen(["openssl", "x509", "-text", "-noout"], stdin=PIPE,
-            stdout=PIPE, stderr=PIPE).communicate(crt)
-        self.assertIn("BEGIN", crt.decode("utf8"))
-        self.assertIn("Issuer", out.decode("utf8"))
+        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        self.assertIn("BEGIN", certchain.decode("utf8"))
+        self.assertIn("Issuer", readablecertchain.decode("utf8"))
 
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
