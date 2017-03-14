@@ -31,7 +31,6 @@ class TestACMEDNSTiny(unittest.TestCase):
         super(TestACMEDNSTiny, self).tearDownClass()
 
     # helper function to run openssl command
-    @classmethod
     def _openssl(command, options, communicate=None):
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -48,7 +47,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain = sys.stdout.getvalue()
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = this._openssl("x509", ["-text", "-noout"], certchain)
         self.assertIn("BEGIN", certchain)
         self.assertIn("Issuer", readablecertchain)
 
@@ -61,7 +60,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain = sys.stdout.getvalue()
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = this._openssl("x509", ["-text", "-noout"], certchain)
         self.assertIn("BEGIN", certchain.decode("utf8"))
         self.assertIn("Issuer", readablecertchain.decode("utf8"))
 
@@ -73,7 +72,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain = sys.stdout.getvalue()
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = this._openssl("x509", ["-text", "-noout"], certchain)
         self.assertIn("BEGIN", certchain.decode("utf8"))
         self.assertIn("Issuer", readablecertchain.decode("utf8"))
 
@@ -83,7 +82,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain, err = Popen([
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=PIPE, stderr=PIPE).communicate()
-        readablecertchain = _openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = this._openssl("x509", ["-text", "-noout"], certchain)
         self.assertIn("BEGIN", certchain.decode("utf8"))
         self.assertIn("Issuer", readablecertchain.decode("utf8"))
 
