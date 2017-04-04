@@ -46,7 +46,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain = sys.stdout.getvalue()
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
         # Output have to contains two certiicates
         certlist = certchain.split("-----BEGIN CERTIFICATE-----")
@@ -65,7 +65,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain = sys.stdout.getvalue()
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
         # Output have to contains two certiicates
         certlist = certchain.split("-----BEGIN CERTIFICATE-----")
@@ -83,7 +83,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain = sys.stdout.getvalue()
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
         # Output have to contains two certiicates
         certlist = certchain.split("-----BEGIN CERTIFICATE-----")
@@ -99,7 +99,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         certchain, err = subprocess.Popen([
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
+        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
         # Output have to contains two certiicates
         certlist = certchain.split("-----BEGIN CERTIFICATE-----")
