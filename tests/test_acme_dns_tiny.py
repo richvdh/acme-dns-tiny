@@ -31,7 +31,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         super(TestACMEDNSTiny, self).tearDownClass()
 
     # helper function to run openssl command
-    def _openssl(command, options, communicate=None):
+    def _openssl(self, command, options, communicate=None):
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
