@@ -1,5 +1,4 @@
-import unittest, sys, os
-from subprocess import Popen, PIPE
+import unittest, sys, os, subprocess
 from io import StringIO
 import dns.version
 import acme_dns_tiny
@@ -79,9 +78,9 @@ class TestACMEDNSTiny(unittest.TestCase):
 
     def test_success_cli(self):
         """ Successfully issue a certificate via command line interface """
-        certchain, err = Popen([
+        certchain, err = subprocess.Popen([
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
-        ], stdout=PIPE, stderr=PIPE).communicate()
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
         self.assertIn("BEGIN", certchain.decode("utf8"))
         self.assertIn("Issuer", readablecertchain.decode("utf8"))
