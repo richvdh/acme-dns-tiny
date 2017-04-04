@@ -47,7 +47,13 @@ class TestACMEDNSTiny(unittest.TestCase):
         sys.stdout.close()
         sys.stdout = old_stdout
         readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
-        self.assertIn("BEGIN", certchain)
+        
+        # Output have to contains two certiicates
+        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
+        self.assertEqual(2, len(certlist))
+        self.assertIn("-----END CERTIFICATE-----", certlist[0])
+        self.assertIn("-----END CERTIFICATE-----", certlist[1])
+        # Just check if human readable output is really readable
         self.assertIn("Issuer", readablecertchain)
 
     def test_success_dnshost_ip(self):
@@ -60,8 +66,14 @@ class TestACMEDNSTiny(unittest.TestCase):
         sys.stdout.close()
         sys.stdout = old_stdout
         readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
-        self.assertIn("BEGIN", certchain.decode("utf8"))
-        self.assertIn("Issuer", readablecertchain.decode("utf8"))
+        
+        # Output have to contains two certiicates
+        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
+        self.assertEqual(2, len(certlist))
+        self.assertIn("-----END CERTIFICATE-----", certlist[0])
+        self.assertIn("-----END CERTIFICATE-----", certlist[1])
+        # Just check if human readable output is really readable
+        self.assertIn("Issuer", readablecertchain)
 
     def test_success_san(self):
         """ Successfully issue a certificate via subject alt name """
@@ -72,8 +84,14 @@ class TestACMEDNSTiny(unittest.TestCase):
         sys.stdout.close()
         sys.stdout = old_stdout
         readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
-        self.assertIn("BEGIN", certchain.decode("utf8"))
-        self.assertIn("Issuer", readablecertchain.decode("utf8"))
+        
+        # Output have to contains two certiicates
+        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
+        self.assertEqual(2, len(certlist))
+        self.assertIn("-----END CERTIFICATE-----", certlist[0])
+        self.assertIn("-----END CERTIFICATE-----", certlist[1])
+        # Just check if human readable output is really readable
+        self.assertIn("Issuer", readablecertchain)
 
 
     def test_success_cli(self):
@@ -82,8 +100,14 @@ class TestACMEDNSTiny(unittest.TestCase):
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain)
-        self.assertIn("BEGIN", certchain.decode("utf8"))
-        self.assertIn("Issuer", readablecertchain.decode("utf8"))
+        
+        # Output have to contains two certiicates
+        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
+        self.assertEqual(2, len(certlist))
+        self.assertIn("-----END CERTIFICATE-----", certlist[0])
+        self.assertIn("-----END CERTIFICATE-----", certlist[1])
+        # Just check if human readable output is really readable
+        self.assertIn("Issuer", readablecertchain)
 
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
