@@ -111,39 +111,27 @@ class TestACMEDNSTiny(unittest.TestCase):
 
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
-        try:
-            result = acme_dns_tiny.main([self.configs['weakKey'].name])
-        except Exception as e:
-            result = e
-        self.assertIsInstance(result, ValueError)
-        self.assertIn("Key too small", result.args[0])
+        self.assertRaisesRegex(ValueError,
+                               "Key too small",
+                               acme_dns_tiny.main, [self.configs['weakKey'].name])
 
     def test_account_key_domain(self):
         """ Can't use the account key for the CSR """
-        try:
-            result = acme_dns_tiny.main([self.configs['accountAsDomain'].name])
-        except Exception as e:
-            result = e
-        self.assertIsInstance(result, ValueError)
-        self.assertIn("Certificate public key must be different than account key", result.args[0])
+        self.assertRaisesRegex(ValueError,
+                               "Certificate public key must be different than account key",
+                               acme_dns_tiny.main, [self.configs['accountAsDomain'].name])
 
     def test_failure_dns_update_tsigkeyname(self):
         """ Fail to update DNS records by invalid TSIG Key name """
-        try:
-            result = acme_dns_tiny.main([self.configs['invalidTSIGName'].name])
-        except Exception as e:
-            result = e
-        self.assertIsInstance(result, ValueError)
-        self.assertIn("Error updating DNS", result.args[0])
+        self.assertRaisesRegex(ValueError,
+                               "Error updating DNS",
+                               acme_dns_tiny.main, [self.configs['invalidTSIGName'].name])
 
     def test_failure_notcompleted_configuration(self):
         """ Configuration file have to be completed """
-        try:
-            result = acme_dns_tiny.main([self.configs['missingDNS'].name])
-        except Exception as e:
-            result = e
-        self.assertIsInstance(result, ValueError)
-        self.assertIn("Some required settings are missing.", result.args[0])
+        self.assertRaisesRegex(ValueError,
+                               "Some required settings are missing\.",
+                               acme_dns_tiny.main, [self.configs['missingDNS'].name])
 
 if __name__ == "__main__":
     unittest.main()
