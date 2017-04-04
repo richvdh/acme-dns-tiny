@@ -12,8 +12,9 @@ class TestACMEDNSTiny(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        print("Init acme_dns_tiny with python modules:{0}".format(os.linesep))
-        print("  - dns python:{0}{1}".format(dns.version.version, os.linesep))
+        print("Init acme_dns_tiny with python modules:")
+        print("  - python: {0}".format(sys.version))
+        print("  - dns python: {0}".format(dns.version.version))
         self.configs = generate_acme_dns_tiny_config()
         super(TestACMEDNSTiny, self).setUpClass()
 
@@ -96,8 +97,7 @@ class TestACMEDNSTiny(unittest.TestCase):
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         
-        certout.seek(0)
-        certchain = certout.read().decode("utf8")
+        certchain = certout.decode("utf8")
         
         certout.close()
         err.close()
