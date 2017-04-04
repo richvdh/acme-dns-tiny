@@ -106,13 +106,13 @@ class TestACMEDNSTiny(unittest.TestCase):
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
         self.assertRaisesRegex(ValueError,
-                               "Key too small",
+                               "key too small",
                                acme_dns_tiny.main, [self.configs['weakKey'].name])
 
     def test_account_key_domain(self):
         """ Can't use the account key for the CSR """
         self.assertRaisesRegex(ValueError,
-                               "Certificate public key must be different than account key",
+                               "certificate public key must be different than account key",
                                acme_dns_tiny.main, [self.configs['accountAsDomain'].name])
 
     def test_failure_dns_update_tsigkeyname(self):
