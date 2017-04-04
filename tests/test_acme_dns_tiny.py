@@ -4,7 +4,6 @@ import dns.version
 import acme_dns_tiny
 from tests.config_factory import generate_acme_dns_tiny_config
 from tools.acme_account_delete import account_delete
-import logassert
 
 ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
@@ -15,7 +14,6 @@ class TestACMEDNSTiny(unittest.TestCase):
     def setUpClass(self):
         print("Init acme_dns_tiny with python modules:".join(os.linesep))
         print("  - dns python:{0}{1}".format(dns.version.version, os.linesep))
-        logassert.setup(self, 'acme_dns_tiny_logger')
         self.configs = generate_acme_dns_tiny_config()
         super(TestACMEDNSTiny, self).setUpClass()
 
@@ -30,7 +28,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         super(TestACMEDNSTiny, self).tearDownClass()
 
     # helper function to run openssl command
-    def _openssl(self, command, options, communicate=None):
+    def openssl(self, command, options, communicate=None):
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
@@ -38,76 +36,72 @@ class TestACMEDNSTiny(unittest.TestCase):
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
+    # helper function to valid success by making assertion on returned certificate chain
+    def assertCertificateChain(self, certificateChain):
+        # Output have to contains two certiicates
+        certlist = certificateChain.split("-----BEGIN CERTIFICATE-----")
+        self.assertEqual(2, len(certlist))
+        self.assertIn("-----END CERTIFICATE-----{0}".format(os.linesep), certlist[0])
+        self.assertIn("-----END CERTIFICATE-----{0}".format(os.linesep), certlist[1])
+        # Use openssl to check validity of chain and simple test of readability
+        readablecertchain = self.openssl("x509", ["-text", "-noout"], certificateChain.encode("utf8"))
+        self.assertIn("Issuer", readablecertchain)
+
     def test_success_cn(self):
         """ Successfully issue a certificate via common name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
+        
         acme_dns_tiny.main([self.configs['goodCName'].name])
         certchain = sys.stdout.getvalue()
+        
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
-        # Output have to contains two certiicates
-        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
-        self.assertEqual(2, len(certlist))
-        self.assertIn("-----END CERTIFICATE-----", certlist[0])
-        self.assertIn("-----END CERTIFICATE-----", certlist[1])
-        # Just check if human readable output is really readable
-        self.assertIn("Issuer", readablecertchain)
+        self.assertCertificateChain(certchain)
 
     def test_success_dnshost_ip(self):
         """ When DNS Host is an IP, DNS resolution have to fail without error """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        acme_dns_tiny.main([self.configs['dnsHostIP'].name])
-        self.assertLoggedInfo("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.")
+        
+        with self.assertLogs(level='INFO') as adnslog:
+            acme_dns_tiny.main([self.configs['dnsHostIP'].name])
+        self.assertIn("INFO:acme_dns_tiny:A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.",
+            adnslog.output)
         certchain = sys.stdout.getvalue()
+        
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
-        # Output have to contains two certiicates
-        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
-        self.assertEqual(2, len(certlist))
-        self.assertIn("-----END CERTIFICATE-----", certlist[0])
-        self.assertIn("-----END CERTIFICATE-----", certlist[1])
-        # Just check if human readable output is really readable
-        self.assertIn("Issuer", readablecertchain)
+        self.assertCertificateChain(certchain)
 
     def test_success_san(self):
         """ Successfully issue a certificate via subject alt name """
         old_stdout = sys.stdout
         sys.stdout = StringIO()
+        
         acme_dns_tiny.main([self.configs['goodSAN'].name])
         certchain = sys.stdout.getvalue()
+        
         sys.stdout.close()
         sys.stdout = old_stdout
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
-        # Output have to contains two certiicates
-        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
-        self.assertEqual(2, len(certlist))
-        self.assertIn("-----END CERTIFICATE-----", certlist[0])
-        self.assertIn("-----END CERTIFICATE-----", certlist[1])
-        # Just check if human readable output is really readable
-        self.assertIn("Issuer", readablecertchain)
-
+        self.assertCertificateChain(certchain)
 
     def test_success_cli(self):
         """ Successfully issue a certificate via command line interface """
-        certchain, err = subprocess.Popen([
+        certout, err = subprocess.Popen([
             "python3", "acme_dns_tiny.py", self.configs['goodCName'].name
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-        readablecertchain = self._openssl("x509", ["-text", "-noout"], certchain.encode())
         
-        # Output have to contains two certiicates
-        certlist = certchain.split("-----BEGIN CERTIFICATE-----")
-        self.assertEqual(2, len(certlist))
-        self.assertIn("-----END CERTIFICATE-----", certlist[0])
-        self.assertIn("-----END CERTIFICATE-----", certlist[1])
-        # Just check if human readable output is really readable
-        self.assertIn("Issuer", readablecertchain)
+        certout.seek(0)
+        certchain = certout.read().decode("utf8")
+        
+        certout.close()
+        err.close()
+        
+        self.assertCertificateChain(certchain)
 
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
