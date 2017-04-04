@@ -12,7 +12,7 @@ class TestACMEDNSTiny(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        print("Init acme_dns_tiny with python modules:".join(os.linesep))
+        print("Init acme_dns_tiny with python modules:{0}".format(os.linesep))
         print("  - dns python:{0}{1}".format(dns.version.version, os.linesep))
         self.configs = generate_acme_dns_tiny_config()
         super(TestACMEDNSTiny, self).setUpClass()
@@ -40,9 +40,10 @@ class TestACMEDNSTiny(unittest.TestCase):
     def assertCertificateChain(self, certificateChain):
         # Output have to contains two certiicates
         certlist = certificateChain.split("-----BEGIN CERTIFICATE-----")
-        self.assertEqual(2, len(certlist))
-        self.assertIn("-----END CERTIFICATE-----{0}".format(os.linesep), certlist[0])
+        self.assertEqual(3, len(certlist))
+        self.assertEqual('', certlist[0])
         self.assertIn("-----END CERTIFICATE-----{0}".format(os.linesep), certlist[1])
+        self.assertIn("-----END CERTIFICATE-----{0}".format(os.linesep), certlist[2])
         # Use openssl to check validity of chain and simple test of readability
         readablecertchain = self.openssl("x509", ["-text", "-noout"], certificateChain.encode("utf8"))
         self.assertIn("Issuer", readablecertchain)
