@@ -251,7 +251,8 @@ def get_crt(config, log=LOGGER):
     intermediary_certificate = "{0}{1}".format(os.linesep, textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
 
     log.info("Certificate signed and received.")
-    return "".join(["""-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}""".format(os.linesep, cert) for cert in [certificate, intermediary_certificate]])
+    return "".join("-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}".format(
+        os.linesep, cert) for cert in [certificate, intermediary_certificate])
 
 def main(argv):
     parser = argparse.ArgumentParser(
