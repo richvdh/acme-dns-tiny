@@ -5,7 +5,7 @@ from configparser import ConfigParser
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
-LOGGER = logging.getLogger('acme_dns_tiny_logger')
+LOGGER = logging.getLogger('acme_dns_tiny')
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
