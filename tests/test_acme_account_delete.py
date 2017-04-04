@@ -1,6 +1,4 @@
 import unittest, sys, os
-from subprocess import Popen, PIPE
-from io import StringIO
 import acme_dns_tiny
 from tests.config_factory import generate_acme_account_delete_config
 import tools.acme_account_delete
