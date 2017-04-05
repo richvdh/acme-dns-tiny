@@ -15,8 +15,8 @@ class TestACMEDNSTiny(unittest.TestCase):
         print("Init acme_dns_tiny with python modules:")
         print("  - python: {0}".format(sys.version))
         print("  - dns python: {0}".format(dns.version.version))
-        sys.stdout.flush()
         self.configs = generate_acme_dns_tiny_config()
+        sys.stdout.flush()
         super(TestACMEDNSTiny, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
