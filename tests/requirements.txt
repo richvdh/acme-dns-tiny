@@ -1,4 +1,3 @@
 coverage
-logassert
 argparse
 configparser
