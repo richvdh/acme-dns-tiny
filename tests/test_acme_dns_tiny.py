@@ -35,7 +35,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         out, err = openssl.communicate(communicate)
         if openssl.returncode != 0:
             raise IOError("OpenSSL Error: {0}".format(err))
-        return out
+        return out.decode("utf8")
 
     # helper function to valid success by making assertion on returned certificate chain
     def assertCertificateChain(self, certificateChain):
@@ -98,9 +98,6 @@ class TestACMEDNSTiny(unittest.TestCase):
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
         
         certchain = certout.decode("utf8")
-        
-        certout.close()
-        err.close()
         
         self.assertCertificateChain(certchain)
 
