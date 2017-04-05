@@ -240,7 +240,7 @@ def get_crt(config, log=LOGGER):
     })
     if code != 201:
         raise ValueError("Error signing certificate: {0} {1}".format(code, result))
-    certificate = "{0}{1}".format(os.linesep, textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
+    certificate = os.linesep.join(textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
 
     # get the parent certificate which had created this one
     certificate_parent_url = _get_url_link(headers, 'up')
@@ -248,11 +248,13 @@ def get_crt(config, log=LOGGER):
     if resp.getcode() not in [200, 201]:
         raise ValueError("Error getting certificate chain from {0}: {1} {2}".format(
             certificate_parent_url, code, resp.read()))
-    intermediary_certificate = "{0}{1}".format(os.linesep, textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
-
+    intermediary_certificate = os.linesep.join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
+    
+    chainlist = ["-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}".format(
+        os.linesep, cert) for cert in [certificate, intermediary_certificate]]
+    
     log.info("Certificate signed and received.")
-    return "".join("-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}".format(
-        os.linesep, cert) for cert in [certificate, intermediary_certificate])
+    return "".join(chainlist)
 
 def main(argv):
     parser = argparse.ArgumentParser(
