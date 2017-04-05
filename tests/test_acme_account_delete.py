@@ -10,7 +10,6 @@ class TestACMEAccountDelete(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        logassert.setup(self, 'acme_account_delete')
         self.accountkey = generate_acme_account_delete_config()
         super(TestACMEAccountDelete, self).setUpClass()
 

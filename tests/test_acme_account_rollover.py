@@ -11,7 +11,6 @@ class TestACMEAccountRollover(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        logassert.setup(self, 'acme_account_rollover')
         self.configs = generate_acme_account_rollover_config()
         super(TestACMEAccountRollover, self).setUpClass()
 
