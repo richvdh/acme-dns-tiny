@@ -1,10 +1,7 @@
-import unittest, sys, os
-from subprocess import Popen, PIPE
-from io import StringIO
+import unittest, os
 import acme_dns_tiny
 from tests.config_factory import generate_acme_account_delete_config
 import tools.acme_account_delete
-import logassert
 
 ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
@@ -23,14 +20,13 @@ class TestACMEAccountDelete(unittest.TestCase):
         self.accountkey.close()
         super(TestACMEAccountDelete, self).tearDownClass()
 
-    def setUp(self):
-        logassert.setup(self, 'acme_account_delete')
-
     def test_success_account_delete(self):
         """ Test success account key delete """
-        tools.acme_account_delete.main(["--account-key", self.accountkey.name,
-                                        "--acme-directory", ACMEDirectory])
-        self.assertLoggedInfo("Account key deleted !")
+        with self.assertLogs(level='INFO') as accountdeletelog:
+            tools.acme_account_delete.main(["--account-key", self.accountkey.name,
+                                            "--acme-directory", ACMEDirectory])
+        self.assertIn("INFO:acme_account_delete:Account key deleted !",
+            accountdeletelog.output)
 
 if __name__ == "__main__":
     unittest.main()

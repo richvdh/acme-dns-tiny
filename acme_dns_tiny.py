@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-import argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
+import os, argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
 import dns.resolver, dns.tsigkeyring, dns.update
 from configparser import ConfigParser
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
-LOGGER = logging.getLogger('acme_dns_tiny_logger')
+LOGGER = logging.getLogger('acme_dns_tiny')
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
@@ -72,27 +72,22 @@ def get_crt(config, log=LOGGER):
 
     log.info("Prepare DNS keyring and resolver.")
     keyring = dns.tsigkeyring.from_text({config["TSIGKeyring"]["KeyName"]: config["TSIGKeyring"]["KeyValue"]})
+    resolver = dns.resolver.Resolver(configure=False)
+    resolver.retry_servfail = True
     nameserver = []
     try:
         nameserver = [ipv4_rrset.to_text() for ipv4_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="A")]
+        nameserver = nameserver + [ipv6_rrset.to_text() for ipv6_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="AAAA")]
     except dns.exception.DNSException as e:
-        log.info("DNS IPv4 record not found for configured dns host.")
-    finally:
-        try:
-            nameserver = nameserver + [ipv6_rrset.to_text() for ipv6_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="AAAA")]
-        except dns.exception.DNSException as e:
-            log.info("DNS IPv4 and IPv6 records not found for configured dns host. Try to keep original name.")
-        finally:
-            if not nameserver:
-                nameserver = [config["DNS"]["Host"]]
-    resolver = dns.resolver.Resolver(configure=False)
+        log.info("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.")
+    if not nameserver:
+        nameserver = [config["DNS"]["Host"]]
     resolver.nameservers = nameserver
-    resolver.retry_servfail = True
 
     log.info("Parsing account key looking for public key.")
     accountkey = _openssl("rsa", ["-in", config["acmednstiny"]["AccountKeyFile"], "-noout", "-text"])
     pub_hex, pub_exp = re.search(
-        r"modulus:\n\s+00:([a-f0-9\:\s]+?)\npublicExponent: ([0-9]+)",
+        r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
         accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
     pub_exp = "{0:x}".format(int(pub_exp))
     pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
@@ -114,7 +109,7 @@ def get_crt(config, log=LOGGER):
     common_name = re.search(r"Subject:.*? CN=([^\s,;/]+)", csr)
     if common_name is not None:
         domains.add(common_name.group(1))
-    subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \n +([^\n]+)\n", csr, re.MULTILINE | re.DOTALL)
+    subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \r?\n +([^\r\n]+)\r?\n", csr, re.MULTILINE | re.DOTALL)
     if subject_alt_names is not None:
         for san in subject_alt_names.group(1).split(", "):
             if san.startswith("DNS:"):
@@ -133,11 +128,12 @@ def get_crt(config, log=LOGGER):
         reg_info["contact"].append(reg_phone)
     if len(reg_info["contact"]) == 0:
         del reg_info["contact"]
+
     code, result, headers = _send_signed_request(acme_config["new-reg"], reg_info)
     if code == 201:
-        reg_received_contact = reg_info.get("contact")
         account_url = dict(headers).get("Location")
         log.info("Registered! (account: '{0}')".format(account_url))
+        reg_received_contact = reg_info.get("contact")
     elif code == 409:
         account_url = dict(headers).get("Location")
         log.info("Already registered! (account: '{0}')".format(account_url))
@@ -153,8 +149,8 @@ def get_crt(config, log=LOGGER):
     if current_terms is None:
         current_terms = _get_url_link(headers, 'terms-of-service')
     if (reg_info.get("agreement") != current_terms
-        or (config["acmednstiny"].get("MailContact") is not None and reg_mailto not in reg_received_contact)
-        or (config["acmednstiny"].get("PhoneContact") is not None and reg_phone not in reg_received_contact)):
+        or reg_mailto not in reg_received_contact
+        or reg_phone not in reg_received_contact):
         reg_info["resource"] = "reg"
         reg_info["agreement"] = current_terms
         code, result, headers = _send_signed_request(account_url, reg_info)
@@ -207,6 +203,7 @@ def get_crt(config, log=LOGGER):
                 if challenge_verified is False:
                     number_check_fail = number_check_fail + 1
                     time.sleep(2)
+
         log.info("Ask ACME server to perform checks.")
         code, result, headers = _send_signed_request(challenge["uri"], {
             "resource": "challenge",
@@ -243,7 +240,7 @@ def get_crt(config, log=LOGGER):
     })
     if code != 201:
         raise ValueError("Error signing certificate: {0} {1}".format(code, result))
-    certificate = "\n".join(textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
+    certificate = os.linesep.join(textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
 
     # get the parent certificate which had created this one
     certificate_parent_url = _get_url_link(headers, 'up')
@@ -251,27 +248,29 @@ def get_crt(config, log=LOGGER):
     if resp.getcode() not in [200, 201]:
         raise ValueError("Error getting certificate chain from {0}: {1} {2}".format(
             certificate_parent_url, code, resp.read()))
-    certificate_parent = "\n".join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
-
+    intermediary_certificate = os.linesep.join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
+    
+    chainlist = ["-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}".format(
+        os.linesep, cert) for cert in [certificate, intermediary_certificate]]
+    
     log.info("Certificate signed and received.")
-    return """-----BEGIN CERTIFICATE-----\n{0}\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\n{1}\n-----END CERTIFICATE-----\n""".format(
-        certificate, certificate_parent)
+    return "".join(chainlist)
 
 def main(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent("""\
-            This script automates the process of getting a signed TLS certificate
-            chain from Let's Encrypt using the ACME protocol and its DNS verification.
-            It will need to have access to your private account key and dns server
-            so PLEASE READ THROUGH IT!
-            It's around 300 lines, so it won't take long.
+        description="""
+This script automates the process of getting a signed TLS certificate
+chain from Let's Encrypt using the ACME protocol and its DNS verification.
+It will need to have access to your private account key and dns server
+so PLEASE READ THROUGH IT!
+It's around 300 lines, so it won't take long.
 
-            ===Example Usage===
-            python3 acme_dns_tiny.py ./example.ini > chain.crt
-            See example.ini file to configure correctly this script.
-            ===================
-            """)
+===Example Usage===
+python3 acme_dns_tiny.py ./example.ini > chain.crt
+See example.ini file to configure correctly this script.
+===================
+"""
     )
     parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="suppress output except for errors")
     parser.add_argument("configfile", help="path to your configuration file")
