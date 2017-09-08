@@ -1,18 +1,7 @@
-FROM jessie
+FROM debian:jessie-backports
 
 RUN apt-get update
 RUN apt-get upgrade
-
-# Add Jessie backports source
-RUN apt-get install -y \
-	software-properties-common
-
-RUN add-apt-repository \
-	"deb http://httpredir.debian.org/debian" \
-	"jessie-backports" \
-	"main"
-
-RUN apt-get update
 
 # Minimal tools required by acme-dns-tiny CI
 RUN apt-get install -y \
