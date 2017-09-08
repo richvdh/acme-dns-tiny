@@ -7,6 +7,7 @@ RUN apt-get upgrade
 RUN apt-get install -y \
 	python3-dnspython \
 	python3-coverage \
+	python3-configargparse \
 	python3-pip
 
 # Allows run python3-coverage with same command than manual install by pip

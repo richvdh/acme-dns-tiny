@@ -10,6 +10,7 @@ RUN apt-get install -y \
 
 RUN apt-get install -y \
 	-t jessie-backports \
+	python3-configargparse \
 	python3-dnspython
 
 
