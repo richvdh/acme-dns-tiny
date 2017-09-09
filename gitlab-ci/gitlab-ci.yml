@@ -18,3 +18,10 @@ jessie_backport:
     - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny tests.test_acme_account_rollover tests.test_acme_account_delete
     - coverage report --include=acme_dns_tiny.py,tools/acme_account_rollover.py,tools/acme_account_delete.py
     - coverage html
+
+stretch:
+  image: adt-stretch_dnspython3_1.15
+  script:
+    - coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny tests.test_acme_account_rollover tests.test_acme_account_delete
+    - coverage report --include=acme_dns_tiny.py,tools/acme_account_rollover.py,tools/acme_account_delete.py
+    - coverage html
