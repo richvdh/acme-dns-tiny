@@ -16,9 +16,7 @@ RUN apt-get install -y \
 
 # Allows run python3-coverage with same command than manual install by pip
 RUN update-alternatives --install \
-	/usr/bin/python3-coverage \
+	/usr/bin/coverage \
 	coverage \
-	/usr/bin/python3.4-coverage \
+	/usr/bin/python3-coverage \
 	1
-
-RUN ln -s /etc/alternatives/coverage /usr/bin/coverage
