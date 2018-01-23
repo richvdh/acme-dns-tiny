@@ -40,7 +40,12 @@ def get_crt(config, log=LOGGER):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
-        protected["nonce"] = jws_nonce or urlopen(config["acmednstiny"]["ACMEDirectory"]).getheader("Replay-Nonce", None)
+        protected["nonce"] = jws_nonce or urlopen(acme_config["newNonce"]).getheader("Replay-Nonce", None)
+        protected["url"] = url
+        if url == acme_config("newAccount"):
+            del protected["kid"]
+        else:
+            del protected["jwk"]
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", config["acmednstiny"]["AccountKeyFile"]],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
@@ -68,7 +73,7 @@ def get_crt(config, log=LOGGER):
     log.info("Read ACME directory.")
     directory = urlopen(config["acmednstiny"]["ACMEDirectory"])
     acme_config = json.loads(directory.read().decode("utf8"))
-    current_terms = acme_config.get("meta", {}).get("terms-of-service")
+    current_terms = acme_config.get("meta", {}).get("termsOfService")
 
     log.info("Prepare DNS keyring and resolver.")
     keyring = dns.tsigkeyring.from_text({config["TSIGKeyring"]["KeyName"]: config["TSIGKeyring"]["KeyValue"]})
@@ -98,6 +103,7 @@ def get_crt(config, log=LOGGER):
             "kty": "RSA",
             "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
         },
+        "kid": None,
     }
     accountkey_json = json.dumps(jws_header["jwk"], sort_keys=True, separators=(",", ":"))
     thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
@@ -116,7 +122,6 @@ def get_crt(config, log=LOGGER):
                 domains.add(san[4:])
 
     log.info("Registering ACME Account.")
-    reg_info = {"resource": "new-reg"}
     if current_terms is not None:
         reg_info["agreement"] = current_terms
     reg_info["contact"] = []
@@ -129,21 +134,22 @@ def get_crt(config, log=LOGGER):
     if len(reg_info["contact"]) == 0:
         del reg_info["contact"]
 
-    code, result, headers = _send_signed_request(acme_config["new-reg"], reg_info)
+    code, result, headers = _send_signed_request(acme_config["newAccount"], reg_info)
     if code == 201:
         account_url = dict(headers).get("Location")
         log.info("Registered! (account: '{0}')".format(account_url))
         reg_received_contact = reg_info.get("contact")
-    elif code == 409:
+    elif code == 200:
         account_url = dict(headers).get("Location")
         log.info("Already registered! (account: '{0}')".format(account_url))
-        # Client should send empty payload to query account information
-        code, result, headers = _send_signed_request(account_url, {"resource":"reg"})
+        reg_info["onlyReturnExisting"] = True
+        code, result, headers = _send_signed_request(acme_config["newAccount"], reg_info)
         account_info = json.loads(result.decode("utf8"))
         reg_info["agreement"] = account_info.get("agreement")
         reg_received_contact = account_info.get("contact")
     else:
         raise ValueError("Error registering: {0} {1}".format(code, result))
+    jws_header["kid"] = account_url
 
     log.info("Update contact information and terms of service agreement if needed.")
     if current_terms is None:
