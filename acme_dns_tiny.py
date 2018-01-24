@@ -60,14 +60,6 @@ def get_crt(config, log=LOGGER):
             jws_nonce = resp.getheader("Replay-Nonce", None)
             return resp.getcode(), resp.read(), resp.getheaders()
 
-    # helper function to get url from Link HTTP headers
-    def _get_url_link(headers, rel):
-        log.info("Looking for Link with rel='{0}' in headers".format(rel))
-        linkheaders = [link.strip() for link in dict(headers)["Link"].split(',')]
-        url = [re.match(r'<(?P<url>.*)>.*;rel=(' + re.escape(rel) + r'|("([a-z][a-z0-9\.\-]*\s+)*' + re.escape(rel) + r'[\s"]))', link).groupdict()
-                        for link in linkheaders][0]["url"]
-        return url
-
     # main code
     log.info("Read ACME directory.")
     directory = urlopen(config["acmednstiny"]["ACMEDirectory"])
@@ -166,8 +158,7 @@ def get_crt(config, log=LOGGER):
         log.info("Order created: ")
     elif (code == 403
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
-        terms_service = _get_url_link(headers, "terms-of-service")
-        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], terms_service, order["instance"]))
+        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], dict(headers)["Link"], order["instance"]))
     else:
         raise ValueError("Error getting new Order: {0} {1}".format(code, result))
 
@@ -268,7 +259,7 @@ def get_crt(config, log=LOGGER):
             resp.getcode(), resp.read.decode("utf8")))
     certchain = os.linesep.join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
     
-    log.info("Certificate signed and chain received.")
+    log.info("Certificate signed and chain received: {0}".format(finalize["certificate"]))
     return "".join(certchain)
 
 def main(argv):
