@@ -207,15 +207,15 @@ def get_crt(config, log=LOGGER):
                     time.sleep(2)
 
         log.info("Ask ACME server to perform checks.")
-        code, result, headers = _send_signed_request(challenge["uri"], {"keyAuthorization": keyauthorization})
-        if code != 202:
+        code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
+        if code != 200:
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
 
         log.info("Waiting challenge to be verified.")
         try:
             while True:
                 try:
-                    resp = urlopen(challenge["uri"])
+                    resp = urlopen(challenge["url"])
                     challenge_status = json.loads(resp.read().decode("utf8"))
                 except IOError as e:
                     raise ValueError("Error checking challenge: {0} {1}".format(
