@@ -42,7 +42,7 @@ def get_crt(config, log=LOGGER):
         protected = copy.deepcopy(jws_header)
         protected["nonce"] = jws_nonce or urlopen(acme_config["newNonce"]).getheader("Replay-Nonce", None)
         protected["url"] = url
-        if url == acme_config("newAccount"):
+        if url == acme_config["newAccount"]:
             del protected["kid"]
         else:
             del protected["jwk"]
@@ -50,8 +50,7 @@ def get_crt(config, log=LOGGER):
         signature = _openssl("dgst", ["-sha256", "-sign", config["acmednstiny"]["AccountKeyFile"]],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
         data = json.dumps({
-            "header": jws_header, "protected": protected64,
-            "payload": payload64, "signature": _b64(signature),
+            "protected": protected64, "payload": payload64,"signature": _b64(signature)
         })
         try:
             resp = urlopen(url, data.encode("utf8"))
@@ -122,49 +121,48 @@ def get_crt(config, log=LOGGER):
                 domains.add(san[4:])
 
     log.info("Registering ACME Account.")
+    account_request = {}
     account_request["termsOfServiceAgreed"] = True
     account_request["contact"] = []
-    account_mailto = "mailto:{0}".format(config["acmednstiny"].get("MailContact"))
-    account_phone = "tel:{0}".format(config["acmednstiny"].get("PhoneContact"))
     if config["acmednstiny"].get("MailContact") is not None:
-        account_request["contact"].append(account_mailto)
+        account_request["contact"].append("mailto:{0}".format(config["acmednstiny"].get("MailContact")))
     if config["acmednstiny"].get("PhoneContact") is not None:
-        account_request["contact"].append(account_phone)
+        account_request["contact"].append("tel:{0}".format(config["acmednstiny"].get("PhoneContact")))
     if len(account_request["contact"]) == 0:
         del account_request["contact"]
 
     code, result, headers = _send_signed_request(acme_config["newAccount"], account_request)
+    account_info = {}
     if code == 201:
-        account_url = dict(headers).get("Location")
-        log.info("Registered! (account: '{0}')".format(account_url))
+        jws_header["kid"] = dict(headers).get("Location")
+        log.info("Registered! (account: '{0}')".format(jws_header["kid"]))
         account_info["termsOfServiceAgreed"] = True
         account_info["contact"] = account_request["contact"]
     elif code == 200:
-        account_url = dict(headers).get("Location")
-        log.info("Already registered! (account: '{0}')".format(account_url))
+        jws_header["kid"] = dict(headers).get("Location")
+        log.info("Already registered! (account: '{0}')".format(jws_header["kid"]))
 
-        code, result, headers = _send_signed_request(account_url, {})
+        code, result, headers = _send_signed_request(jws_header["kid"], {})
         account_info = json.loads(result.decode("utf8"))
     else:
         raise ValueError("Error registering: {0} {1}".format(code, result))
-    jws_header["kid"] = account_url
 
     log.info("Update contact information if needed.")
-    if (account_info["termsOfServiceAgreed"] == False
-        or account_mailto not in account_info["contact"]
-        or account_phone not in account_info["contact"]):
-        code, result, headers = _send_signed_request(account_url, account_request)
+    if (set(account_request["contact"]) != set(account_info["contact"])):
+        code, result, headers = _send_signed_request(jws_header["kid"], account_request)
         if code == 200:
             log.info("Account updated with latest contact informations.")
-        elif code == 403:
-            error_info = json.loads(result.decode("utf8"))
-            error_msg = "Error register update: {0} {1}".format(code, result)
-            if error_info["type"] == "urn:ietf:params:acme:error:userActionRequired":
-                terms_service = _get_url_link(headers, "terms-of-service")
-                error_msg = "Automatic agreement of Terms of service failed ({0}). Read terms ({1}), then follow your CA instructions: {2}".format(error_info["detail"], terms_service, error_info["instance"])
-            raise ValueError(error_msg)
         else:
             raise ValueError("Error register update: {0} {1}".format(code, result))
+
+    # when will we be notified to update agreements ?
+    #elif code == 403:
+    #    error_info = json.loads(result.decode("utf8"))
+    #    error_msg = "Error register update: {0} {1}".format(code, result)
+    #    if error_info["type"] == "urn:ietf:params:acme:error:userActionRequired":
+    #        terms_service = _get_url_link(headers, "terms-of-service")
+    #        error_msg = "Automatic agreement of Terms of service failed ({0}). Read terms ({1}), then follow your CA instructions: {2}".format(error_info["detail"], terms_service, error_info["instance"])
+    #    raise ValueError(error_msg)
 
     # verify each domain
     for domain in domains:
