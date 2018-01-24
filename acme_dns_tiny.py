@@ -234,7 +234,7 @@ def get_crt(config, log=LOGGER):
     log.info("Finalizing the order...")
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
-    if code != 201:
+    if code != 200:
         raise ValueError("Error finalizing the order: {0} {1}".format(code, result))
 
     while True:
@@ -254,13 +254,13 @@ def get_crt(config, log=LOGGER):
                 domain, finalize))
     
     resp = urlopen(finalize["certificate"])
-    if resp.code() != 200:
+    if resp.getcode() != 200:
         raise ValueError("Finalizing order {0} got errors: {1}".format(
             resp.getcode(), resp.read.decode("utf8")))
-    certchain = os.linesep.join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
+    certchain = resp.read().decode("utf8")
     
     log.info("Certificate signed and chain received: {0}".format(finalize["certificate"]))
-    return "".join(certchain)
+    return certchain
 
 def main(argv):
     parser = argparse.ArgumentParser(
