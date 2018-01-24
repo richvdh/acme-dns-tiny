@@ -155,29 +155,35 @@ def get_crt(config, log=LOGGER):
         else:
             raise ValueError("Error register update: {0} {1}".format(code, result))
 
-    # when will we be notified to update agreements ?
-    #elif code == 403:
-    #    error_info = json.loads(result.decode("utf8"))
-    #    error_msg = "Error register update: {0} {1}".format(code, result)
-    #    if error_info["type"] == "urn:ietf:params:acme:error:userActionRequired":
-    #        terms_service = _get_url_link(headers, "terms-of-service")
-    #        error_msg = "Automatic agreement of Terms of service failed ({0}). Read terms ({1}), then follow your CA instructions: {2}".format(error_info["detail"], terms_service, error_info["instance"])
-    #    raise ValueError(error_msg)
+    # new order
+    log.info("Certification issuance: ask for a new Order")
+    new_order = { "identifiers": [{"type": "dns", "value": domain} for domain in domains],
+              "notAfter": "2018-01-25T:04:00:00Z"}
+    code, result, headers = _send_signed_request(acme_config["newOrder"], new_order)
+    order = json.loads(result.decode("utf8"))
+    if code == 201:
+        order_location = dict(headers).get("Location")
+        log.info("Order created: ")
+    elif (code == 403
+        and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
+        terms_service = _get_url_link(headers, "terms-of-service")
+        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], terms_service, order["instance"]))
+    else:
+        raise ValueError("Error getting new Order: {0} {1}".format(code, result))
 
-    # verify each domain
-    for domain in domains:
-        log.info("Verifying domain: {0}".format(domain))
+    # complete each authorization challenge
+    for authz in order["authorizations"]:
+        log.info("Complete authz: {0}".format(authz))
 
         # get new challenge
-        code, result, headers = _send_signed_request(acme_config["new-authz"], {
-            "resource": "new-authz",
-            "identifier": {"type": "dns", "value": domain},
-        })
-        if code != 201:
-            raise ValueError("Error requesting challenges: {0} {1}".format(code, result))
+        resp = urlopen(authz)
+        authorization = json.loads(resp.read().decode("utf8"))
+        if resp.getcode() != 200:
+            raise ValueError("Error requesting challenges: {0} {1}".format(resp.getcode(), authorization))
+        domain = authorization["identifier"]["value"]
 
-        log.info("Create and install DNS TXT challenge resource.")
-        challenge = [c for c in json.loads(result.decode("utf8"))["challenges"] if c["type"] == "dns-01"][0]
+        log.info("Create and install DNS TXT challenge resource for: {0}".format(domain))
+        challenge = [c for c in authorization["challenges"] if c["type"] == "dns-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge["token"])
         keyauthorization = "{0}.{1}".format(token, thumbprint)
         keydigest64 = _b64(hashlib.sha256(keyauthorization.encode("utf8")).digest())
@@ -210,10 +216,7 @@ def get_crt(config, log=LOGGER):
                     time.sleep(2)
 
         log.info("Ask ACME server to perform checks.")
-        code, result, headers = _send_signed_request(challenge["uri"], {
-            "resource": "challenge",
-            "keyAuthorization": keyauthorization,
-        })
+        code, result, headers = _send_signed_request(challenge["uri"], {"keyAuthorization": keyauthorization})
         if code != 202:
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
 
@@ -237,29 +240,36 @@ def get_crt(config, log=LOGGER):
         finally:
             _update_dns(dnsrr_set, "delete")
 
-    log.info("Ask to sign certificate.")
-    csr_der = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"])
-    code, result, headers = _send_signed_request(acme_config["new-cert"], {
-        "resource": "new-cert",
-        "csr": _b64(csr_der),
-    })
+    log.info("Finalizing the order...")
+    csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
+    code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
     if code != 201:
-        raise ValueError("Error signing certificate: {0} {1}".format(code, result))
-    certificate = os.linesep.join(textwrap.wrap(base64.b64encode(result).decode("utf8"), 64))
+        raise ValueError("Error finalizing the order: {0} {1}".format(code, result))
 
-    # get the parent certificate which had created this one
-    certificate_parent_url = _get_url_link(headers, 'up')
-    resp = urlopen(certificate_parent_url)
-    if resp.getcode() not in [200, 201]:
-        raise ValueError("Error getting certificate chain from {0}: {1} {2}".format(
-            certificate_parent_url, code, resp.read()))
-    intermediary_certificate = os.linesep.join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
+    while True:
+        try:
+            resp = urlopen(order_location)
+            finalize = json.loads(resp.read().decode("utf8"))
+        except IOError as e:
+            raise ValueError("Error finalizing order: {0} {1}".format(
+                e.code, json.loads(e.read().decode("utf8"))))
+        if finalize["status"] == "processing":
+            time.sleep(2)
+        elif finalize["status"] == "valid":
+            log.info("Order finalized!")
+            break
+        else:
+            raise ValueError("Finalizing order {0} got errors: {1}".format(
+                domain, finalize))
     
-    chainlist = ["-----BEGIN CERTIFICATE-----{0}{1}{0}-----END CERTIFICATE-----{0}".format(
-        os.linesep, cert) for cert in [certificate, intermediary_certificate]]
+    resp = urlopen(finalize["certificate"])
+    if resp.code() != 200:
+        raise ValueError("Finalizing order {0} got errors: {1}".format(
+            resp.getcode(), resp.read.decode("utf8")))
+    certchain = os.linesep.join(textwrap.wrap(base64.b64encode(resp.read()).decode("utf8"), 64))
     
-    log.info("Certificate signed and received.")
-    return "".join(chainlist)
+    log.info("Certificate signed and chain received.")
+    return "".join(certchain)
 
 def main(argv):
     parser = argparse.ArgumentParser(
@@ -282,7 +292,7 @@ See example.ini file to configure correctly this script.
     args = parser.parse_args(argv)
 
     config = ConfigParser()
-    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging.api.letsencrypt.org/directory",
+    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v2.api.letsencrypt.org/directory",
                                       "CheckChallengeDelay": 2},
                       "DNS": {"Port": "53"}})
     config.read(args.configfile)
