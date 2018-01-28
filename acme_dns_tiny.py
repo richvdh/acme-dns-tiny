@@ -115,11 +115,7 @@ def get_crt(config, log=LOGGER):
     log.info("Registering ACME Account.")
     account_request = {}
     account_request["termsOfServiceAgreed"] = True
-    account_request["contact"] = []
-    if config["acmednstiny"].get("MailContact") is not None:
-        account_request["contact"].append("mailto:{0}".format(config["acmednstiny"].get("MailContact")))
-    if config["acmednstiny"].get("PhoneContact") is not None:
-        account_request["contact"].append("tel:{0}".format(config["acmednstiny"].get("PhoneContact")))
+    account_request["contact"] = config["acmednstiny"].get("Contacts").split(';')
     if len(account_request["contact"]) == 0:
         del account_request["contact"]
 
@@ -149,8 +145,7 @@ def get_crt(config, log=LOGGER):
 
     # new order
     log.info("Certification issuance: ask for a new Order")
-    new_order = { "identifiers": [{"type": "dns", "value": domain} for domain in domains],
-              "notAfter": "2018-01-25T:04:00:00Z"}
+    new_order = { "identifiers": [{"type": "dns", "value": domain} for domain in domains]}
     code, result, headers = _send_signed_request(acme_config["newOrder"], new_order)
     order = json.loads(result.decode("utf8"))
     if code == 201:
