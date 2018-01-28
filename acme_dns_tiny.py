@@ -115,8 +115,8 @@ def get_crt(config, log=LOGGER):
     log.info("Registering ACME Account.")
     account_request = {}
     account_request["termsOfServiceAgreed"] = True
-    account_request["contact"] = config["acmednstiny"].get("Contacts").split(';')
-    if len(account_request["contact"]) == 0:
+    account_request["contact"] = config["acmednstiny"].get("Contacts", "").split(';')
+    if account_request["contact"] == "":
         del account_request["contact"]
 
     code, result, headers = _send_signed_request(acme_config["newAccount"], account_request)
@@ -278,7 +278,7 @@ See example.ini file to configure correctly this script.
     args = parser.parse_args(argv)
 
     config = ConfigParser()
-    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v2.api.letsencrypt.org/directory",
+    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory",
                                       "CheckChallengeDelay": 2},
                       "DNS": {"Port": "53"}})
     config.read(args.configfile)
