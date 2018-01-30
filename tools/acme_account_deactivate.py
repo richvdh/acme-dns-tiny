@@ -1,8 +1,8 @@
-import os, argparse, subprocess, json, base64, binascii, re, copy, logging
+import sys, os, argparse, subprocess, json, base64, binascii, re, copy, logging
 from urllib.request import urlopen
 from urllib.error import HTTPError
 
-LOGGER = logging.getLogger("acme_account_delete")
+LOGGER = logging.getLogger("acme_account_deactivate")
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
@@ -25,13 +25,17 @@ def account_delete(accountkeypath, acme_directory, log=LOGGER):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
-        protected["nonce"] = jws_nonce or urlopen(acme_directory).getheader("Replay-Nonce", None)
+        protected["nonce"] = jws_nonce or urlopen(acme_config["newNonce"]).getheader("Replay-Nonce", None)
+        protected["url"] = url
+        if url == acme_config["newAccount"]:
+            del protected["kid"]
+        else:
+            del protected["jwk"]
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
         data = json.dumps({
-            "header": jws_header, "protected": protected64,
-            "payload": payload64, "signature": _b64(signature),
+            "protected": protected64, "payload": payload64,"signature": _b64(signature)
         })
         try:
             resp = urlopen(url, data.encode("utf8"))
@@ -41,8 +45,11 @@ def account_delete(accountkeypath, acme_directory, log=LOGGER):
             jws_nonce = resp.getheader("Replay-Nonce", None)
             return resp.getcode(), resp.read(), resp.getheaders()
 
-    # parse account key to get public key
-    log.info("Parsing account key...")
+    log.info("Reading ACME directory.")
+    directory = urlopen(acme_directory)
+    acme_config = json.loads(directory.read().decode("utf8"))
+
+    log.info("Parsing account key.")
     accountkey = _openssl("rsa", ["-in", accountkeypath, "-noout", "-text"])
     pub_hex, pub_exp = re.search(
         r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
@@ -56,40 +63,35 @@ def account_delete(accountkeypath, acme_directory, log=LOGGER):
             "kty": "RSA",
             "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
         },
+        "kid": None,
     }
-    
-    # get ACME server configuration from the directory
-    directory = urlopen(acme_directory)
-    acme_config = json.loads(directory.read().decode("utf8"))
     jws_nonce = None
     
-    log.info("Register account to get account URL.") 
-    code, result, headers = _send_signed_request(acme_config["new-reg"], {
-        "resource": "new-reg"
-    })
+    log.info("Ask CA provider account url.")
+    account_request = {}
+    account_request["onlyReturnExisting"] = True
 
-    if code == 201:
-        account_url = dict(headers).get("Location")
-        log.info("Registered! (account: '{0}')".format(account_url))
-    elif code == 409:
-        account_url = dict(headers).get("Location")
-        log.info("Already registered! (account: '{0}')".format(account_url))
+    code, result, headers = _send_signed_request(acme_config["newAccount"], account_request)
+    if code == 200:
+        jws_header["kid"] = dict(headers).get("Location")
+    else:
+        raise ValueError("Error looking or account URL: {0} {1}".format(code, result))
 
-    log.info("Delete account...")
-    code, result, headers = _send_signed_request(account_url, {
-        "resource": "reg",
-        "delete": True,
-    })
+    log.info("Deactivating account...")
+    code, result, headers = _send_signed_request(jws_header["kid"], {"status": "deactivated"})
 
-    if code not in [200,202]:
-        raise ValueError("Error deleting account key: {0} {1}".format(code, result))
-    log.info("Account key deleted !")
+    if code == 200:
+        log.info("Account key deactivated !")
+    else:
+        raise ValueError("Error while deactivating the account key: {0} {1}".format(code, result))
 
 def main(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="""
-This script *deletes* your account from an ACME server.
+This script permanently *deactivate* your account from an ACME server.
+You should revoke your certificates *before* using this script,
+as the server won't accept any further request with this account.
 
 It will need to have access to your private account key, so
 PLEASE READ THROUGH IT!
@@ -97,7 +99,7 @@ It's around 150 lines, so it won't take long.
 
 === Example Usage ===
 Remove account.key from staging Let's Encrypt:
-python3 acme_account_delete.py --account-key account.key --acme-directory https://acme-staging.api.letsencrypt.org/directory
+python3 acme_account_deactivate.py --account-key account.key --acme-directory https://acme-staging-v02.api.letsencrypt.org/directory
 """
     )
     parser.add_argument("--account-key", required = True, help="path to the private account key to delete")
