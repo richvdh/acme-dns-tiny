@@ -3,7 +3,7 @@ from io import StringIO
 import dns.version
 import acme_dns_tiny
 from tests.config_factory import generate_acme_dns_tiny_config
-from tools.acme_account_delete import account_delete
+from tools.acme_account_deactivate import account_deactivate
 
 ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
 
@@ -22,8 +22,8 @@ class TestACMEDNSTiny(unittest.TestCase):
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
-        # delete account key registration at end of tests
-        account_delete(self.configs["accountkey"].name, ACMEDirectory)
+        # deactivate account key registration at end of tests
+        account_deactivate(self.configs["accountkey"].name, ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
