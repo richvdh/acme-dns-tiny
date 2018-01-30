@@ -194,10 +194,9 @@ def get_crt(config, log=LOGGER):
             except dns.exception.DNSException as dnsexception:
                 log.info("Info: retry, because a DNS error occurred while checking challenge: {0} : {1}".format(type(dnsexception).__name__, dnsexception))
             finally:
-                if number_check_fail >= 10:
-                    raise ValueError("Error checking challenge, value not found: {0}".format(keydigest64))
-
                 if challenge_verified is False:
+                    if number_check_fail >= 10:
+                        raise ValueError("Error checking challenge, value not found: {0}".format(keydigest64))
                     number_check_fail = number_check_fail + 1
                     time.sleep(2)
 
