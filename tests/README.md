@@ -21,7 +21,7 @@ explains how to setup and test acme-tiny yourself.
 
 ## List of environment variables
 
-  * `GITLABCI_CAURL`: URL of a staging ACME server
+  * `GITLABCI_ACMEDIRECTORY_V2`: URL of a staging V2 ACME server
   * `GITLABCI_CHALLENGEDELAY`: time to wait between dns update and self-check (set it to `0` to cover a bit more code)
   * `GITLABCI_DNSHOST`: domain name to reach of your DNS server (e.g. `adorsaz.ch`)
   * `GITLABCI_DNSHOSTIP`: IP address to reach of your DNS server

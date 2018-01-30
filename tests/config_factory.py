@@ -4,7 +4,7 @@ from subprocess import Popen
 
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
-ACMEDIRECTORY = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
+ACMEDIRECTORY = os.getenv("GITLABCI_ACMEDIRECTORY_V2", "https://acme-staging-v02.api.letsencrypt.org/directory")
 CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
 DNSHOSTIP = os.getenv("GITLABCI_DNSHOSTIP")
@@ -50,8 +50,7 @@ def generate_acme_dns_tiny_config():
     config.read("./example.ini".format(DOMAIN))
     config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
     config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
-    config["acmednstiny"]["MailContact"] = "mail@example.com"
-    del config["acmednstiny"]["PhoneContact"]
+    config["acmednstiny"]["Contacts"] = "mailto:mail@example.com"
     config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
     config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
     config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
@@ -133,8 +132,30 @@ def generate_acme_account_rollover_config():
     }
 
 # generate an account key to delete it
-def generate_acme_account_delete_config():
+def generate_acme_account_deactivate_config():
     # account key
     account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
-    return account_key
+
+    # default test configuration
+    config = configparser.ConfigParser()
+    config.read("./example.ini".format(DOMAIN))
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = account_key.name
+    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
+    config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
+    config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
+    config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
+    config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
+    config["DNS"]["Host"] = DNSHOST
+    config["DNS"]["Port"] = DNSPORT
+    config["DNS"]["Zone"] = DNSZONE
+
+    deactivateConfig = NamedTemporaryFile()
+    with open(deactivateConfig.name, 'w') as configfile:
+        config.write(configfile)
+
+    return {
+        "config": deactivateConfig.name,
+        "key": account_key
+    }
