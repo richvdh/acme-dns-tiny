@@ -1,7 +1,7 @@
 import unittest, os
 import acme_dns_tiny
 from tests.config_factory import generate_acme_account_rollover_config
-from tools.acme_account_delete import account_delete
+from tools.acme_account_deactivate import account_deactivate
 import tools.acme_account_rollover
 
 ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
@@ -17,8 +17,8 @@ class TestACMEAccountRollover(unittest.TestCase):
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
-        # delete account key registration at end of tests
-        account_delete(self.configs["newaccountkey"].name, ACMEDirectory)
+        # deactivate account key registration at end of tests
+        account_deactivate(self.configs["newaccountkey"].name, ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
