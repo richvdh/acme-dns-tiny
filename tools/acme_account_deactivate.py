@@ -6,7 +6,7 @@ LOGGER = logging.getLogger("acme_account_deactivate")
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
-def account_delete(accountkeypath, acme_directory, log=LOGGER):
+def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
     # helper function base64 encode as defined in acme spec
     def _b64(b):
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
@@ -102,7 +102,7 @@ Remove account.key from staging Let's Encrypt:
 python3 acme_account_deactivate.py --account-key account.key --acme-directory https://acme-staging-v02.api.letsencrypt.org/directory
 """
     )
-    parser.add_argument("--account-key", required = True, help="path to the private account key to delete")
+    parser.add_argument("--account-key", required = True, help="path to the private account key to deactivate")
     parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
     parser.add_argument("--quiet", action="store_const",
                         const=logging.ERROR,
@@ -110,7 +110,7 @@ python3 acme_account_deactivate.py --account-key account.key --acme-directory ht
     args = parser.parse_args(argv)
 
     LOGGER.setLevel(args.quiet or LOGGER.level)
-    account_delete(args.account_key, args.acme_directory)
+    account_deactivate(args.account_key, args.acme_directory)
 
 if __name__ == "__main__":  # pragma: no cover
     main(sys.argv[1:])
