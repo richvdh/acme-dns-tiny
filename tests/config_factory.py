@@ -122,11 +122,32 @@ def generate_acme_account_rollover_config():
     # Old account key
     old_account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", old_account_key.name, "2048"]).wait()
+
     # New account key
     new_account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", new_account_key.name, "2048"]).wait()
+
+    # default test configuration
+    config = configparser.ConfigParser()
+    config.read("./example.ini".format(DOMAIN))
+    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["CSRFile"] = account_key.name
+    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
+    config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
+    config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
+    config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
+    config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
+    config["DNS"]["Host"] = DNSHOST
+    config["DNS"]["Port"] = DNSPORT
+    config["DNS"]["Zone"] = DNSZONE
+
+    deactivateConfig = NamedTemporaryFile()
+    with open(deactivateConfig.name, 'w') as configfile:
+        config.write(configfile)
+
     return {
-        # keys (returned to keep files on system)
+        # config and keys (returned to keep files on system)
+        "config": config,
         "oldaccountkey": old_account_key,
         "newaccountkey": new_account_key
     }

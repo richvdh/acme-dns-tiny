@@ -4,7 +4,7 @@ from tests.config_factory import generate_acme_account_rollover_config
 from tools.acme_account_deactivate import account_deactivate
 import tools.acme_account_rollover
 
-ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY_V2", "https://acme-staging-v02.api.letsencrypt.org/directory")
 
 class TestACMEAccountRollover(unittest.TestCase):
     "Tests for acme_account_rollover"
@@ -12,6 +12,7 @@ class TestACMEAccountRollover(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.configs = generate_acme_account_rollover_config()
+        acme_dns_tiny.main([self.configs['config'].name])
         super(TestACMEAccountRollover, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
