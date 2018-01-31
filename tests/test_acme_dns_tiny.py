@@ -5,7 +5,7 @@ import acme_dns_tiny
 from tests.config_factory import generate_acme_dns_tiny_config
 from tools.acme_account_deactivate import account_deactivate
 
-ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY", "https://acme-staging.api.letsencrypt.org/directory")
+ACMEDirectory = os.getenv("GITLABCI_ACMEDIRECTORY_V2", "https://acme-staging-v02.api.letsencrypt.org/directory")
 
 class TestACMEDNSTiny(unittest.TestCase):
     "Tests for acme_dns_tiny.get_crt()"
