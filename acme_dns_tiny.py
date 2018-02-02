@@ -150,7 +150,7 @@ def get_crt(config, log=LOGGER):
     order = json.loads(result.decode("utf8"))
     if code == 201:
         order_location = dict(headers).get("Location")
-        log.info("Order created: ")
+        log.info("Order created: {0}".format(order_location))
     elif (code == 403
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
         raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], dict(headers)["Link"], order["instance"]))
@@ -159,7 +159,7 @@ def get_crt(config, log=LOGGER):
 
     # complete each authorization challenge
     for authz in order["authorizations"]:
-        log.info("Complete authz: {0}".format(authz))
+        log.info("Completing authz: {0}".format(authz))
 
         # get new challenge
         resp = urlopen(authz)
@@ -226,6 +226,9 @@ def get_crt(config, log=LOGGER):
             _update_dns(dnsrr_set, "delete")
 
     log.info("Finalizing the order...")
+    resp = urlopen(order_location)
+    finalize = json.loads(resp.read().decode("utf8"))
+    log.info("Before sending request, order is: {0}".format(finalize))
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
     finalize = json.loads(result.decode("utf8"))
