@@ -130,8 +130,8 @@ def generate_acme_account_rollover_config():
     # default test configuration
     config = configparser.ConfigParser()
     config.read("./example.ini".format(DOMAIN))
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = account_key.name
+    config["acmednstiny"]["AccountKeyFile"] = old_account_key.name
+    config["acmednstiny"]["CSRFile"] = old_account_key.name
     config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
     config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
     config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
