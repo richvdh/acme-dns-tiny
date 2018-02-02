@@ -228,24 +228,23 @@ def get_crt(config, log=LOGGER):
     log.info("Finalizing the order...")
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
-    if code != 200:
-        raise ValueError("Error finalizing the order: {0} {1}".format(code, result))
+    finalize = json.loads(result.decode("utf8"))
 
     while True:
-        try:
-            resp = urlopen(order_location)
-            finalize = json.loads(resp.read().decode("utf8"))
-        except IOError as e:
-            raise ValueError("Error finalizing order: {0} {1}".format(
-                e.code, json.loads(e.read().decode("utf8"))))
         if finalize["status"] == "processing":
-            time.sleep(2)
+            time.sleep(resp.getheader("Retry-After", 2)
         elif finalize["status"] == "valid":
             log.info("Order finalized!")
             break
         else:
             raise ValueError("Finalizing order {0} got errors: {1}".format(
                 domain, finalize))
+        try:
+            resp = urlopen(order_location)
+            finalize = json.loads(resp.read().decode("utf8"))
+        except IOError as e:
+            raise ValueError("Error finalizing order: {0} {1}".format(
+                e.code, json.loads(e.read().decode("utf8"))))
     
     resp = urlopen(finalize["certificate"])
     if resp.getcode() != 200:
