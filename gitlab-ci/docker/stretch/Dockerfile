@@ -1,7 +1,7 @@
 FROM debian:stretch
 
 RUN apt-get update
-RUN apt-get upgrade
+RUN apt-get upgrade -y
 
 # Minimal tools required by acme-dns-tiny CI
 RUN apt-get install -y \
