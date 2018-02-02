@@ -177,6 +177,6 @@ def generate_acme_account_deactivate_config():
         config.write(configfile)
 
     return {
-        "config": deactivateConfig.name,
+        "config": deactivateConfig,
         "key": account_key
     }

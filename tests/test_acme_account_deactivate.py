@@ -11,15 +11,16 @@ class TestACMEAccountDeactivate(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         configs = generate_acme_account_deactivate_config()
+        self.config = configs["config"]
         self.account_key = configs["key"]
-        acme_dns_tiny.main([self.configs['config'].name])
+        acme_dns_tiny.main([self.config.name])
         super(TestACMEAccountDeactivate, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
         # close temp files correctly
-        self.configs['config'].close
+        self.config.close()
         self.accountkey.close()
         super(TestACMEAccountDeactivate, self).tearDownClass()
 
