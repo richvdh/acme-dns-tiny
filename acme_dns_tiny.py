@@ -232,7 +232,7 @@ def get_crt(config, log=LOGGER):
 
     while True:
         if finalize["status"] == "processing":
-            time.sleep(resp.getheader("Retry-After", 2)
+            time.sleep(resp.getheader("Retry-After", 2))
         elif finalize["status"] == "valid":
             log.info("Order finalized!")
             break
