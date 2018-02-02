@@ -95,7 +95,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
 
     log.info("Rolls over account key...")
     outer_payload = _sign_request(jws_header["kid"], new_accountkeypath, {
-        "account": account_url,
+        "account": jws_header["kid"],
         "newKey": new_jws_header["jwk"] })
     code, result, headers = _send_signed_request(jws_header["kid"], accountkeypath, outer_payload)
 
