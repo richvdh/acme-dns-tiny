@@ -150,7 +150,9 @@ def get_crt(config, log=LOGGER):
     order = json.loads(result.decode("utf8"))
     if code == 201:
         order_location = dict(headers).get("Location")
-        log.info("Order created: {0}".format(order_location))
+        log.info("Order received: {0}".format(order_location))
+        if order["status"] != "pending":
+            raise ValueError("Order status is not pending, we can't use it: {0}".format(order))
     elif (code == 403
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
         raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], dict(headers)["Link"], order["instance"]))
@@ -228,12 +230,19 @@ def get_crt(config, log=LOGGER):
     log.info("Finalizing the order...")
     resp = urlopen(order_location)
     finalize = json.loads(resp.read().decode("utf8"))
-    log.info("Before sending request, order is: {0}".format(finalize))
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
-    finalize = json.loads(result.decode("utf8"))
+    if code != 200:
+        raise ValueError("Error while sending the CSR: {0} {1}".format(code, result))
 
     while True:
+        try:
+            resp = urlopen(order_location)
+            finalize = json.loads(resp.read().decode("utf8"))
+        except IOError as e:
+            raise ValueError("Error finalizing order: {0} {1}".format(
+                e.code, json.loads(e.read().decode("utf8"))))
+
         if finalize["status"] == "processing":
             time.sleep(resp.getheader("Retry-After", 2))
         elif finalize["status"] == "valid":
@@ -242,12 +251,6 @@ def get_crt(config, log=LOGGER):
         else:
             raise ValueError("Finalizing order {0} got errors: {1}".format(
                 domain, finalize))
-        try:
-            resp = urlopen(order_location)
-            finalize = json.loads(resp.read().decode("utf8"))
-        except IOError as e:
-            raise ValueError("Error finalizing order: {0} {1}".format(
-                e.code, json.loads(e.read().decode("utf8"))))
     
     resp = urlopen(finalize["certificate"])
     if resp.getcode() != 200:
