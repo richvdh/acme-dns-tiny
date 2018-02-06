@@ -1,4 +1,4 @@
-import unittest, sys, os, subprocess
+import unittest, sys, os, subprocess, time
 from io import StringIO
 import dns.version
 import acme_dns_tiny
@@ -28,6 +28,11 @@ class TestACMEDNSTiny(unittest.TestCase):
         for tmpfile in self.configs:
             self.configs[tmpfile].close()
         super(TestACMEDNSTiny, self).tearDownClass()
+
+    # Add a sleeping time between each test, to avoid issue with order status
+    @classmethod
+    def tearDown(self):
+        time.sleep(5);
 
     # helper function to run openssl command
     def openssl(self, command, options, communicate=None):
