@@ -29,8 +29,8 @@ def generate_config():
     # acme-dns-tiny configuration
     parser = configparser.ConfigParser()
     parser.read("./example.ini")
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = domain_csr.name
+    parser["acmednstiny"]["AccountKeyFile"] = account_key.name
+    parser["acmednstiny"]["CSRFile"] = domain_csr.name
     parser["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
     parser["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
     parser["acmednstiny"]["Contacts"] = "mailto:mail@example.com"
