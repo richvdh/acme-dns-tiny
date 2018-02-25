@@ -141,13 +141,13 @@ def generate_acme_account_rollover_config():
     config["DNS"]["Port"] = DNSPORT
     config["DNS"]["Zone"] = DNSZONE
 
-    deactivateConfig = NamedTemporaryFile()
-    with open(deactivateConfig.name, 'w') as configfile:
+    rolloverConfig = NamedTemporaryFile()
+    with open(rolloverConfig.name, 'w') as configfile:
         config.write(configfile)
 
     return {
         # config and keys (returned to keep files on system)
-        "config": config,
+        "config": rolloverConfig,
         "oldaccountkey": old_account_key,
         "newaccountkey": new_account_key
     }
