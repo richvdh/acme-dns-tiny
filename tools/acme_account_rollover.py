@@ -58,13 +58,14 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", keypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
-        signedjws = json.dumps({
+        signedjws = {
             "protected": protected64, "payload": payload64,"signature": _b64(signature)
-        })
+        }
         return signedjws
 
     # helper function make signed requests
     def _send_signed_request(url, keypath, payload):
+        nonlocal jws_nonce
         data = json.dumps(_sign_request(url, keypath, payload))
         try:
             resp = urlopen(url, data.encode("utf8"))
