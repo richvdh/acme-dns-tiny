@@ -43,7 +43,7 @@ def generate_config():
     with open(config.name, 'w') as configfile:
         parser.write(configfile)
 
-    return account_key, domain_key, domain_csr, config
+    return account_key.name, domain_key.name, domain_csr.name, config.name
 
 # generate account and domain keys
 def generate_acme_dns_tiny_config():
@@ -60,18 +60,18 @@ def generate_acme_dns_tiny_config():
     san_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
     san_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:www.{0}\n".format(DOMAIN).encode("utf8"))
     san_conf.seek(0)
-    Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key.name,
+    Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key,
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
         "-out", san_csr.name]).wait()
 
     # CSR signed with the account key
     account_csr = NamedTemporaryFile(delete=False)
-    Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
+    Popen(["openssl", "req", "-new", "-sha256", "-key", account_key,
         "-subj", "/CN={0}".format(DOMAIN), "-out", account_csr.name]).wait()
 
     # Create config parser from the good default config to generate custom configs
     config = configparser.ConfigParser()
-    config.read(goodCName.name)
+    config.read(goodCName)
 
     dnsHostIP = NamedTemporaryFile(delete=False)
     config["DNS"]["Host"] = DNSHOSTIP
@@ -80,19 +80,19 @@ def generate_acme_dns_tiny_config():
     config["DNS"]["Host"] = DNSHOST
 
     goodSAN = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["AccountKeyFile"] = account_key
     config["acmednstiny"]["CSRFile"] = san_csr.name
     with open(goodSAN.name, 'w') as configfile:
         config.write(configfile)
 
     weakKey = NamedTemporaryFile(delete=False)
     config["acmednstiny"]["AccountKeyFile"] = weak_key.name
-    config["acmednstiny"]["CSRFile"] = domain_csr.name
+    config["acmednstiny"]["CSRFile"] = domain_csr
     with open(weakKey.name, 'w') as configfile:
         config.write(configfile)
 
     accountAsDomain = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
+    config["acmednstiny"]["AccountKeyFile"] = account_key
     config["acmednstiny"]["CSRFile"] = account_csr.name
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
@@ -110,20 +110,20 @@ def generate_acme_dns_tiny_config():
     return {
         # configs
         "goodCName": goodCName,
-        "dnsHostIP": dnsHostIP,
-        "goodSAN": goodSAN,
-        "weakKey": weakKey,
-        "accountAsDomain": accountAsDomain,
-        "invalidTSIGName": invalidTSIGName,
-        "missingDNS": missingDNS,
+        "dnsHostIP": dnsHostIP.name,
+        "goodSAN": goodSAN.name,
+        "weakKey": weakKey.name,
+        "accountAsDomain": accountAsDomain.name,
+        "invalidTSIGName": invalidTSIGName.name,
+        "missingDNS": missingDNS.name,
         # keys (returned to keep files on system)
         "accountkey": account_key,
-        "weakkey": weak_key,
+        "weakkey": weak_key.name,
         "domainkey": domain_key,
         # csr (returned to keep files on system)
         "domaincsr": domain_csr,
-        "sancsr": san_csr,
-        "accountcsr": account_csr
+        "sancsr": san_csr.name,
+        "accountcsr": account_csr.name
     }
 
 # generate two account keys to roll over them
@@ -139,7 +139,7 @@ def generate_acme_account_rollover_config():
         # config and keys (returned to keep files on system)
         "config": config,
         "oldaccountkey": old_account_key,
-        "newaccountkey": new_account_key
+        "newaccountkey": new_account_key.name
     }
 
 # generate an account key to delete it

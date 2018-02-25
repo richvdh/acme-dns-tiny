@@ -12,14 +12,14 @@ class TestACMEAccountRollover(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.configs = generate_acme_account_rollover_config()
-        acme_dns_tiny.main([self.configs['config'].name])
+        acme_dns_tiny.main([self.configs['config']])
         super(TestACMEAccountRollover, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
         # deactivate account key registration at end of tests
-        account_deactivate(self.configs["newaccountkey"].name, ACMEDirectory)
+        account_deactivate(self.configs["newaccountkey"], ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
             os.remove(self.configs[tmpfile])
@@ -28,8 +28,8 @@ class TestACMEAccountRollover(unittest.TestCase):
     def test_success_account_rollover(self):
         """ Test success account key rollover """
         with self.assertLogs(level='INFO') as accountrolloverlog:
-            tools.acme_account_rollover.main(["--current", self.configs['oldaccountkey'].name,
-                                          	    "--new", self.configs['newaccountkey'].name,
+            tools.acme_account_rollover.main(["--current", self.configs['oldaccountkey'],
+                                          	    "--new", self.configs['newaccountkey'],
                                           	    "--acme-directory", ACMEDirectory])
         self.assertIn("INFO:acme_account_rollover:Account keys rolled over !",
             accountrolloverlog.output)
