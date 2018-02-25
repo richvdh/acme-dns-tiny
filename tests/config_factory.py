@@ -14,23 +14,47 @@ TSIGKEYNAME = os.getenv("GITLABCI_TSIGKEYNAME")
 TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
 TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
 
-# generate account and domain keys
-def generate_acme_dns_tiny_config():
-    # good account key
+# generate simple config
+def generate_config():
+    # Account key
     account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
 
-    # weak 1024 bit account key
-    weak_key = NamedTemporaryFile()
-    Popen(["openssl", "genrsa", "-out", weak_key.name, "1024"]).wait()
-
-    # good domain key
+    # Domain key and CSR
     domain_key = NamedTemporaryFile()
     domain_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", domain_key.name,
         "-subj", "/CN={0}".format(DOMAIN), "-out", domain_csr.name]).wait()
 
-    # subject alt-name domain
+    # acme-dns-tiny configuration
+    parser = configparser.ConfigParser()
+    parser.read("./example.ini")
+    parser["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
+    parser["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
+    parser["acmednstiny"]["Contacts"] = "mailto:mail@example.com"
+    parser["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
+    parser["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
+    parser["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
+    parser["DNS"]["Host"] = DNSHOST
+    parser["DNS"]["Port"] = DNSPORT
+    parser["DNS"]["Zone"] = DNSZONE
+
+    config = NamedTemporaryFile()
+    with open(config.name, 'w') as configfile:
+        parser.write(configfile)
+
+    return account_key, domain_key, domain_csr, config
+
+# generate account and domain keys
+def generate_acme_dns_tiny_config():
+    # Simple good configuration
+    account_key, domain_key, domain_csr, goodCName = generate_config();
+
+    # weak 1024 bit account key
+    weak_key = NamedTemporaryFile()
+    Popen(["openssl", "genrsa", "-out", weak_key.name, "1024"]).wait()
+
+    # CSR using subject alt-name domain instead of CN (common name)
     san_csr = NamedTemporaryFile()
     san_conf = NamedTemporaryFile()
     san_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
@@ -40,29 +64,14 @@ def generate_acme_dns_tiny_config():
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
         "-out", san_csr.name]).wait()
 
-    # account-signed domain csr
+    # CSR signed with the account key
     account_csr = NamedTemporaryFile()
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
         "-subj", "/CN={0}".format(DOMAIN), "-out", account_csr.name]).wait()
 
-    # Default test configuration
+    # Create config parser from the good default config to generate custom configs
     config = configparser.ConfigParser()
-    config.read("./example.ini".format(DOMAIN))
-    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
-    config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
-    config["acmednstiny"]["Contacts"] = "mailto:mail@example.com"
-    config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
-    config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
-    config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
-    config["DNS"]["Host"] = DNSHOST
-    config["DNS"]["Port"] = DNSPORT
-    config["DNS"]["Zone"] = DNSZONE
-
-    goodCName = NamedTemporaryFile()
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = domain_csr.name
-    with open(goodCName.name, 'w') as configfile:
-        config.write(configfile)
+    config.read(goodCName.name)
 
     dnsHostIP = NamedTemporaryFile()
     config["DNS"]["Host"] = DNSHOSTIP
@@ -119,64 +128,26 @@ def generate_acme_dns_tiny_config():
 
 # generate two account keys to roll over them
 def generate_acme_account_rollover_config():
-    # Old account key
-    old_account_key = NamedTemporaryFile()
-    Popen(["openssl", "genrsa", "-out", old_account_key.name, "2048"]).wait()
+    # Old account is directly created by the config generator
+    old_account_key, domain_key, domain_csr, config = generate_config()
 
     # New account key
     new_account_key = NamedTemporaryFile()
     Popen(["openssl", "genrsa", "-out", new_account_key.name, "2048"]).wait()
 
-    # default test configuration
-    config = configparser.ConfigParser()
-    config.read("./example.ini".format(DOMAIN))
-    config["acmednstiny"]["AccountKeyFile"] = old_account_key.name
-    config["acmednstiny"]["CSRFile"] = old_account_key.name
-    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
-    config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
-    config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
-    config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
-    config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
-    config["DNS"]["Host"] = DNSHOST
-    config["DNS"]["Port"] = DNSPORT
-    config["DNS"]["Zone"] = DNSZONE
-
-    rolloverConfig = NamedTemporaryFile()
-    with open(rolloverConfig.name, 'w') as configfile:
-        config.write(configfile)
-
     return {
         # config and keys (returned to keep files on system)
-        "config": rolloverConfig,
+        "config": config,
         "oldaccountkey": old_account_key,
         "newaccountkey": new_account_key
     }
 
 # generate an account key to delete it
 def generate_acme_account_deactivate_config():
-    # account key
-    account_key = NamedTemporaryFile()
-    Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
-
-    # default test configuration
-    config = configparser.ConfigParser()
-    config.read("./example.ini".format(DOMAIN))
-    config["acmednstiny"]["AccountKeyFile"] = account_key.name
-    config["acmednstiny"]["CSRFile"] = account_key.name
-    config["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
-    config["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
-    config["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
-    config["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
-    config["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
-    config["DNS"]["Host"] = DNSHOST
-    config["DNS"]["Port"] = DNSPORT
-    config["DNS"]["Zone"] = DNSZONE
-
-    deactivateConfig = NamedTemporaryFile()
-    with open(deactivateConfig.name, 'w') as configfile:
-        config.write(configfile)
+    # Account key is created by the by the config generator
+    account_key, domain_key, domain_csr, config = generate_config()
 
     return {
-        "config": deactivateConfig,
+        "config": config,
         "key": account_key
     }
