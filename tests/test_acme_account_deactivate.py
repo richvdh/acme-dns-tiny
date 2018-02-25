@@ -19,9 +19,9 @@ class TestACMEAccountDeactivate(unittest.TestCase):
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
-        # close temp files correctly
-        self.config.close()
-        self.accountkey.close()
+        # Remove temporary files
+        os.remove(self.config.name)
+        os.remove(self.account_key)
         super(TestACMEAccountDeactivate, self).tearDownClass()
 
     def test_success_account_deactivate(self):

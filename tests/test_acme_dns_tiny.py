@@ -26,7 +26,7 @@ class TestACMEDNSTiny(unittest.TestCase):
         account_deactivate(self.configs["accountkey"].name, ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
-            self.configs[tmpfile].close()
+            os.remove(self.configs[tmpfile])
         super(TestACMEDNSTiny, self).tearDownClass()
 
     # Add a sleeping time between each test, to avoid issue with order status

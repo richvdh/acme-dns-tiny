@@ -22,7 +22,7 @@ class TestACMEAccountRollover(unittest.TestCase):
         account_deactivate(self.configs["newaccountkey"].name, ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
-            self.configs[tmpfile].close()
+            os.remove(self.configs[tmpfile])
         super(TestACMEAccountRollover, self).tearDownClass()
 
     def test_success_account_rollover(self):

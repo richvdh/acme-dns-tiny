@@ -17,12 +17,12 @@ TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
 # generate simple config
 def generate_config():
     # Account key
-    account_key = NamedTemporaryFile()
+    account_key = NamedTemporaryFile(delete=False)
     Popen(["openssl", "genrsa", "-out", account_key.name, "2048"]).wait()
 
     # Domain key and CSR
-    domain_key = NamedTemporaryFile()
-    domain_csr = NamedTemporaryFile()
+    domain_key = NamedTemporaryFile(delete=False)
+    domain_csr = NamedTemporaryFile(delete=False)
     Popen(["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", domain_key.name,
         "-subj", "/CN={0}".format(DOMAIN), "-out", domain_csr.name]).wait()
 
@@ -39,7 +39,7 @@ def generate_config():
     parser["DNS"]["Port"] = DNSPORT
     parser["DNS"]["Zone"] = DNSZONE
 
-    config = NamedTemporaryFile()
+    config = NamedTemporaryFile(delete=False)
     with open(config.name, 'w') as configfile:
         parser.write(configfile)
 
@@ -51,12 +51,12 @@ def generate_acme_dns_tiny_config():
     account_key, domain_key, domain_csr, goodCName = generate_config();
 
     # weak 1024 bit account key
-    weak_key = NamedTemporaryFile()
+    weak_key = NamedTemporaryFile(delete=False)
     Popen(["openssl", "genrsa", "-out", weak_key.name, "1024"]).wait()
 
     # CSR using subject alt-name domain instead of CN (common name)
-    san_csr = NamedTemporaryFile()
-    san_conf = NamedTemporaryFile()
+    san_csr = NamedTemporaryFile(delete=False)
+    san_conf = NamedTemporaryFile(delete=False)
     san_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
     san_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:www.{0}\n".format(DOMAIN).encode("utf8"))
     san_conf.seek(0)
@@ -65,7 +65,7 @@ def generate_acme_dns_tiny_config():
         "-out", san_csr.name]).wait()
 
     # CSR signed with the account key
-    account_csr = NamedTemporaryFile()
+    account_csr = NamedTemporaryFile(delete=False)
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key.name,
         "-subj", "/CN={0}".format(DOMAIN), "-out", account_csr.name]).wait()
 
@@ -73,36 +73,36 @@ def generate_acme_dns_tiny_config():
     config = configparser.ConfigParser()
     config.read(goodCName.name)
 
-    dnsHostIP = NamedTemporaryFile()
+    dnsHostIP = NamedTemporaryFile(delete=False)
     config["DNS"]["Host"] = DNSHOSTIP
     with open(dnsHostIP.name, 'w') as configfile:
         config.write(configfile)
     config["DNS"]["Host"] = DNSHOST
 
-    goodSAN = NamedTemporaryFile()
+    goodSAN = NamedTemporaryFile(delete=False)
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = san_csr.name
     with open(goodSAN.name, 'w') as configfile:
         config.write(configfile)
 
-    weakKey = NamedTemporaryFile()
+    weakKey = NamedTemporaryFile(delete=False)
     config["acmednstiny"]["AccountKeyFile"] = weak_key.name
     config["acmednstiny"]["CSRFile"] = domain_csr.name
     with open(weakKey.name, 'w') as configfile:
         config.write(configfile)
 
-    accountAsDomain = NamedTemporaryFile()
+    accountAsDomain = NamedTemporaryFile(delete=False)
     config["acmednstiny"]["AccountKeyFile"] = account_key.name
     config["acmednstiny"]["CSRFile"] = account_csr.name
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
 
-    invalidTSIGName = NamedTemporaryFile()
+    invalidTSIGName = NamedTemporaryFile(delete=False)
     config["TSIGKeyring"]["KeyName"] = "{0}.invalid".format(TSIGKEYNAME)
     with open(invalidTSIGName.name, 'w') as configfile:
         config.write(configfile)
 
-    missingDNS = NamedTemporaryFile()
+    missingDNS = NamedTemporaryFile(delete=False)
     config["DNS"] = {}
     with open(missingDNS.name, 'w') as configfile:
         config.write(configfile)
@@ -132,7 +132,7 @@ def generate_acme_account_rollover_config():
     old_account_key, domain_key, domain_csr, config = generate_config()
 
     # New account key
-    new_account_key = NamedTemporaryFile()
+    new_account_key = NamedTemporaryFile(delete=False)
     Popen(["openssl", "genrsa", "-out", new_account_key.name, "2048"]).wait()
 
     return {
