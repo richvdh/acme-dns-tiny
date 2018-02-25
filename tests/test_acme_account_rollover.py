@@ -19,7 +19,7 @@ class TestACMEAccountRollover(unittest.TestCase):
     @classmethod
     def tearDownClass(self):
         # deactivate account key registration at end of tests
-        account_deactivate(self.configs["newaccountkey"], ACMEDirectory)
+        account_deactivate(self.configs["oldaccountkey"], ACMEDirectory)
         # close temp files correctly
         for tmpfile in self.configs:
             os.remove(self.configs[tmpfile])
