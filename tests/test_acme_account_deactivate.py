@@ -10,24 +10,22 @@ class TestACMEAccountDeactivate(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        configs = generate_acme_account_deactivate_config()
-        self.config = configs["config"]
-        self.account_key = configs["key"]
-        acme_dns_tiny.main([self.config])
+        self.configs = generate_acme_account_deactivate_config()
+        acme_dns_tiny.main([self.configs['config']])
         super(TestACMEAccountDeactivate, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
         # Remove temporary files
-        os.remove(self.config)
-        os.remove(self.account_key)
+        os.remove(self.configs['config'])
+        os.remove(self.configs['key'])
         super(TestACMEAccountDeactivate, self).tearDownClass()
 
     def test_success_account_deactivate(self):
         """ Test success account key deactivate """
         with self.assertLogs(level='INFO') as accountdeactivatelog:
-            tools.acme_account_deactivate.main(["--account-key", self.account_key,
+            tools.acme_account_deactivate.main(["--account-key", self.configs['key'],
                                             "--acme-directory", ACMEDirectory])
         self.assertIn("INFO:acme_account_deactivate:Account key deactivated !",
             accountdeactivatelog.output)
