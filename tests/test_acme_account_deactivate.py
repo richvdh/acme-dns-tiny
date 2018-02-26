@@ -11,7 +11,12 @@ class TestACMEAccountDeactivate(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         self.configs = generate_acme_account_deactivate_config()
-        acme_dns_tiny.main([self.configs['config']])
+        try:
+            acme_dns_tiny.main([self.configs['config']])
+        except ValueError as err:
+            if str(err).startswith("Error register"):
+                raise ValueError("Fail test as account has not been registered correctly: {0}".format(err))
+        
         super(TestACMEAccountDeactivate, self).setUpClass()
 
     # To clean ACME staging server and close correctly temporary files
