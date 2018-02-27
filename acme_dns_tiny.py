@@ -184,13 +184,13 @@ def get_crt(config, log=LOGGER):
         except dns.exception.DNSException as dnsexception:
             raise ValueError("Error updating DNS records: {0} : {1}".format(type(dnsexception).__name__, str(dnsexception)))
 
-        log.info("Wait {0} then start self challenge checks.".format(config["acmednstiny"].getint("CheckChallengeDelay")))
+        log.info("Waiting for {0} seconds before starting self challenge check.".format(config["acmednstiny"].getint("CheckChallengeDelay")))
         time.sleep(config["acmednstiny"].getint("CheckChallengeDelay"))
         challenge_verified = False
         number_check_fail = 1
         while challenge_verified is False:
             try:
-                log.info('Try {0}: Check ressource with value "{1}" exits on nameservers: {2}'.format(number_check_fail, keydigest64, resolver.nameservers))
+                log.info('Try {0}: Check resource with value "{1}" exits on nameservers: {2}'.format(number_check_fail, keydigest64, resolver.nameservers))
                 challenges = resolver.query(dnsrr_domain, rdtype="TXT")
                 for response in challenges.rrset:
                     log.info(".. Found value {0}".format(response.to_text()))
