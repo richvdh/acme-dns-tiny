@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys, os, argparse, subprocess, json, base64, binascii, re, copy, logging
-from urllib.request import urlopen
+import urllib.request
 from urllib.error import HTTPError
 
 LOGGER = logging.getLogger("acme_account_deactivate")
@@ -26,7 +26,7 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
-        protected["nonce"] = jws_nonce or urlopen(acme_config["newNonce"]).getheader("Replay-Nonce", None)
+        protected["nonce"] = jws_nonce or webclient.open(acme_config["newNonce"]).getheader("Replay-Nonce", None)
         protected["url"] = url
         if url == acme_config["newAccount"]:
             del protected["kid"]
@@ -39,15 +39,17 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
             "protected": protected64, "payload": payload64,"signature": _b64(signature)
         })
         try:
-            resp = urlopen(url, data.encode("utf8"))
+            resp = webclient.open(url, data.encode("utf8"))
         except HTTPError as httperror:
             resp = httperror
         finally:
             jws_nonce = resp.getheader("Replay-Nonce", None)
             return resp.getcode(), resp.read(), resp.getheaders()
 
+    webclient = urllib.request.build_opener();
+    webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0/account_deactivate')]
     log.info("Reading ACME directory.")
-    directory = urlopen(acme_directory)
+    directory = webclient.open(acme_directory)
     acme_config = json.loads(directory.read().decode("utf8"))
 
     log.info("Parsing account key.")

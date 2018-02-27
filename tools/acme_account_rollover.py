@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys, os, argparse, subprocess, json, base64, binascii, hashlib, re, copy, logging
-from urllib.request import urlopen
+import urllib.request
 from urllib.error import HTTPError
 
 LOGGER = logging.getLogger("acme_account_rollover")
@@ -46,7 +46,7 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         if keypath == accountkeypath:
             protected = copy.deepcopy(jws_header)
-            protected["nonce"] = jws_nonce or urlopen(acme_config["newNonce"]).getheader("Replay-Nonce", None)
+            protected["nonce"] = jws_nonce or webclient.open(acme_config["newNonce"]).getheader("Replay-Nonce", None)
         elif keypath == new_accountkeypath:
             protected = copy.deepcopy(new_jws_header)
         if (keypath == new_accountkeypath
@@ -68,15 +68,17 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         nonlocal jws_nonce
         data = json.dumps(_sign_request(url, keypath, payload))
         try:
-            resp = urlopen(url, data.encode("utf8"))
+            resp = webclient.open(url, data.encode("utf8"))
         except HTTPError as httperror:
             resp = httperror
         finally:
             jws_nonce = resp.getheader("Replay-Nonce", None)
             return resp.getcode(), resp.read(), resp.getheaders()
 
+    webclient = urllib.request.build_opener();
+    webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0/account_rollover')]
     log.info("Reading ACME directory.")
-    directory = urlopen(acme_directory)
+    directory = webclient.open(acme_directory)
     acme_config = json.loads(directory.read().decode("utf8"))
 
     log.info("Parsing current account key...")

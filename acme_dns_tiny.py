@@ -2,7 +2,7 @@
 import os, argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
 import dns.resolver, dns.tsigkeyring, dns.update
 from configparser import ConfigParser
-from urllib.request import urlopen
+import urllib.request
 from urllib.error import HTTPError
 
 LOGGER = logging.getLogger('acme_dns_tiny')
@@ -40,7 +40,7 @@ def get_crt(config, log=LOGGER):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
-        protected["nonce"] = jws_nonce or urlopen(acme_config["newNonce"]).getheader("Replay-Nonce", None)
+        protected["nonce"] = jws_nonce or webclient.open(acme_config["newNonce"]).getheader("Replay-Nonce", None)
         protected["url"] = url
         if url == acme_config["newAccount"]:
             del protected["kid"]
@@ -53,7 +53,7 @@ def get_crt(config, log=LOGGER):
             "protected": protected64, "payload": payload64,"signature": _b64(signature)
         })
         try:
-            resp = urlopen(url, data.encode("utf8"))
+            resp = webclient.open(url, data.encode("utf8"))
         except HTTPError as httperror:
             resp = httperror
         finally:
@@ -61,8 +61,10 @@ def get_crt(config, log=LOGGER):
             return resp.getcode(), resp.read(), resp.getheaders()
 
     # main code
+    webclient = urllib.request.build_opener()
+    webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0')]
     log.info("Read ACME directory.")
-    directory = urlopen(config["acmednstiny"]["ACMEDirectory"])
+    directory = webclient.open(config["acmednstiny"]["ACMEDirectory"])
     acme_config = json.loads(directory.read().decode("utf8"))
     terms_service = acme_config.get("meta", {}).get("termsOfService")
 
@@ -164,7 +166,7 @@ def get_crt(config, log=LOGGER):
         log.info("Completing authz: {0}".format(authz))
 
         # get new challenge
-        resp = urlopen(authz)
+        resp = webclient.open(authz)
         authorization = json.loads(resp.read().decode("utf8"))
         if resp.getcode() != 200:
             raise ValueError("Error requesting challenges: {0} {1}".format(resp.getcode(), authorization))
@@ -211,7 +213,7 @@ def get_crt(config, log=LOGGER):
         try:
             while True:
                 try:
-                    resp = urlopen(challenge["url"])
+                    resp = webclient.open(challenge["url"])
                     challenge_status = json.loads(resp.read().decode("utf8"))
                 except IOError as e:
                     raise ValueError("Error checking challenge: {0} {1}".format(
@@ -228,7 +230,7 @@ def get_crt(config, log=LOGGER):
             _update_dns(dnsrr_set, "delete")
 
     log.info("Finalizing the order...")
-    resp = urlopen(order_location)
+    resp = webclient.open(order_location)
     finalize = json.loads(resp.read().decode("utf8"))
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
@@ -237,7 +239,7 @@ def get_crt(config, log=LOGGER):
 
     while True:
         try:
-            resp = urlopen(order_location)
+            resp = webclient.open(order_location)
             finalize = json.loads(resp.read().decode("utf8"))
         except IOError as e:
             raise ValueError("Error finalizing order: {0} {1}".format(
@@ -252,7 +254,7 @@ def get_crt(config, log=LOGGER):
             raise ValueError("Finalizing order {0} got errors: {1}".format(
                 domain, finalize))
     
-    resp = urlopen(finalize["certificate"])
+    resp = webclient.open(finalize["certificate"])
     if resp.getcode() != 200:
         raise ValueError("Finalizing order {0} got errors: {1}".format(
             resp.getcode(), resp.read.decode("utf8")))
