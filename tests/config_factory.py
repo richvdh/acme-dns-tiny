@@ -52,6 +52,11 @@ def generate_acme_dns_tiny_config():
     # Simple good configuration
     account_key, domain_key, domain_csr, goodCName = generate_config();
 
+    # CSR for good configuration with wildcard domain
+    wilddomain_csr = NamedTemporaryFile(delete=False)
+    Popen(["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", domain_key,
+           "-subj", "/CN=*.{0}".format(DOMAIN), "-out", wilddomain_csr.name]).wait()
+
     # weak 1024 bit account key
     weak_key = NamedTemporaryFile(delete=False)
     Popen(["openssl", "genrsa", "-out", weak_key.name, "1024"]).wait()
@@ -66,6 +71,16 @@ def generate_acme_dns_tiny_config():
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
         "-out", san_csr.name]).wait()
 
+    # CSR using wildcard in subject alt-name domain
+    wildsan_csr = NamedTemporaryFile(delete=False)
+    wildsan_conf = NamedTemporaryFile(delete=False)
+    wildsan_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
+    wildsan_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:*.{0}\n".format(DOMAIN).encode("utf8"))
+    wildsan_conf.seek(0)
+    Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key,
+           "-subj", "/", "-reqexts", "SAN", "-config", wildsan_conf.name,
+           "-out", wildsan_csr.name]).wait()
+
     # CSR signed with the account key
     account_csr = NamedTemporaryFile(delete=False)
     Popen(["openssl", "req", "-new", "-sha256", "-key", account_key,
@@ -74,6 +89,12 @@ def generate_acme_dns_tiny_config():
     # Create config parser from the good default config to generate custom configs
     config = configparser.ConfigParser()
     config.read(goodCName)
+
+    wildCName = NamedTemporaryFile(delete=False)
+    config["acmednstiny"]["AccountKeyFile"] = account_key
+    config["acmednstiny"]["CSRFile"] = wilddomain_csr.name
+    with open(wildCName.name, 'w') as configfile:
+        config.write(configfile)
 
     dnsHostIP = NamedTemporaryFile(delete=False)
     config["DNS"]["Host"] = DNSHOSTIP
@@ -85,6 +106,12 @@ def generate_acme_dns_tiny_config():
     config["acmednstiny"]["AccountKeyFile"] = account_key
     config["acmednstiny"]["CSRFile"] = san_csr.name
     with open(goodSAN.name, 'w') as configfile:
+        config.write(configfile)
+
+    wildSAN = NamedTemporaryFile(delete=False)
+    config["acmednstiny"]["AccountKeyFile"] = account_key
+    config["acmednstiny"]["CSRFile"] = wildsan_csr.name
+    with open(wildSAN.name, 'w') as configfile:
         config.write(configfile)
 
     weakKey = NamedTemporaryFile(delete=False)
@@ -112,20 +139,16 @@ def generate_acme_dns_tiny_config():
     return {
         # configs
         "goodCName": goodCName,
+        "wildCName": wildCName.name,
         "dnsHostIP": dnsHostIP.name,
         "goodSAN": goodSAN.name,
+        "wildSAN": wildSAN.name,
         "weakKey": weakKey.name,
         "accountAsDomain": accountAsDomain.name,
         "invalidTSIGName": invalidTSIGName.name,
         "missingDNS": missingDNS.name,
-        # keys (returned to keep files on system)
+        # key (just to simply remove the account from staging server)
         "accountkey": account_key,
-        "weakkey": weak_key.name,
-        "domainkey": domain_key,
-        # csr (returned to keep files on system)
-        "domaincsr": domain_csr,
-        "sancsr": san_csr.name,
-        "accountcsr": account_csr.name
     }
 
 # generate two account keys to roll over them

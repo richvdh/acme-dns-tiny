@@ -68,6 +68,19 @@ class TestACMEDNSTiny(unittest.TestCase):
         
         self.assertCertificateChain(certchain)
 
+    def test_success_wild_cn(self):
+        """ Successfully issue a certificate via a wildcard common name """
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+
+        acme_dns_tiny.main([self.configs['wildCName']])
+        certchain = sys.stdout.getvalue()
+
+        sys.stdout.close()
+        sys.stdout = old_stdout
+
+        self.assertCertificateChain(certchain)
+
     def test_success_dnshost_ip(self):
         """ When DNS Host is an IP, DNS resolution have to fail without error """
         old_stdout = sys.stdout
@@ -95,6 +108,19 @@ class TestACMEDNSTiny(unittest.TestCase):
         sys.stdout.close()
         sys.stdout = old_stdout
         
+        self.assertCertificateChain(certchain)
+
+    def test_success_wildsan(self):
+        """ Successfully issue a certificate via wildcard in subject alt name """
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+
+        acme_dns_tiny.main([self.configs['wildSAN']])
+        certchain = sys.stdout.getvalue()
+
+        sys.stdout.close()
+        sys.stdout = old_stdout
+
         self.assertCertificateChain(certchain)
 
     def test_success_cli(self):
