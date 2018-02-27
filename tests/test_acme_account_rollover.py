@@ -25,11 +25,6 @@ class TestACMEAccountRollover(unittest.TestCase):
             os.remove(self.configs[tmpfile])
         super(TestACMEAccountRollover, self).tearDownClass()
 
-    # Add a sleeping time between each test, to avoid issues with order/challenge status
-    @classmethod
-    def setUp(self):
-        time.sleep(5);
-
     def test_success_account_rollover(self):
         """ Test success account key rollover """
         with self.assertLogs(level='INFO') as accountrolloverlog:

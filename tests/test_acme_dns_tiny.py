@@ -29,11 +29,6 @@ class TestACMEDNSTiny(unittest.TestCase):
             os.remove(self.configs[tmpfile])
         super(TestACMEDNSTiny, self).tearDownClass()
 
-    # Add a sleeping time between each test, to avoid issues with order/challenge status
-    @classmethod
-    def setUp(self):
-        time.sleep(5);
-
     # helper function to run openssl command
     def openssl(self, command, options, communicate=None):
         openssl = subprocess.Popen(["openssl", command] + options,
