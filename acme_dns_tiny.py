@@ -64,7 +64,7 @@ def get_crt(config, log=LOGGER):
     webclient = urllib.request.build_opener()
     webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0'), ('Accept-Language', config["acmednstiny"].get("Language", "en"))]
 
-    log.info("Read ACME directory.")
+    log.info("Fetch informations from the ACME directory.")
     directory = webclient.open(config["acmednstiny"]["ACMEDirectory"])
     acme_config = json.loads(directory.read().decode("utf8"))
     terms_service = acme_config.get("meta", {}).get("termsOfService")
@@ -78,12 +78,12 @@ def get_crt(config, log=LOGGER):
         nameserver = [ipv4_rrset.to_text() for ipv4_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="A")]
         nameserver = nameserver + [ipv6_rrset.to_text() for ipv6_rrset in dns.resolver.query(config["DNS"]["Host"], rdtype="AAAA")]
     except dns.exception.DNSException as e:
-        log.info("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.")
+        log.info("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if one exists or directly the DNS Host configuration.")
     if not nameserver:
         nameserver = [config["DNS"]["Host"]]
     resolver.nameservers = nameserver
 
-    log.info("Parsing account key looking for public key.")
+    log.info("Read account key.")
     accountkey = _openssl("rsa", ["-in", config["acmednstiny"]["AccountKeyFile"], "-noout", "-text"])
     pub_hex, pub_exp = re.search(
         r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
@@ -103,7 +103,7 @@ def get_crt(config, log=LOGGER):
     thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
     jws_nonce = None
 
-    log.info("Parsing CSR looking for domains.")
+    log.info("Read CSR to find domains to validate.")
     csr = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-noout", "-text"]).decode("utf8")
     domains = set([])
     common_name = re.search(r"Subject:\s*?CN\s*?=\s*?([^\s,;/]+)", csr)
@@ -115,7 +115,7 @@ def get_crt(config, log=LOGGER):
             if san.startswith("DNS:"):
                 domains.add(san[4:])
 
-    log.info("Registering ACME Account.")
+    log.info("Register ACME Account.")
     account_request = {}
     account_request["termsOfServiceAgreed"] = True
     account_request["contact"] = config["acmednstiny"].get("Contacts", "").split(';')
@@ -131,29 +131,29 @@ def get_crt(config, log=LOGGER):
         account_info["contact"] = account_request["contact"]
     elif code == 200:
         jws_header["kid"] = dict(headers).get("Location")
-        log.info("Already registered! (account: '{0}')".format(jws_header["kid"]))
+        log.debug("  - Account is already registered: '{0}'".format(jws_header["kid"]))
 
         code, result, headers = _send_signed_request(jws_header["kid"], {})
         account_info = json.loads(result.decode("utf8"))
     else:
-        raise ValueError("Error registering: {0} {1}".format(code, result))
+        raise ValueError("Error registering account: {0} {1}".format(code, result))
 
     log.info("Update contact information if needed.")
     if (set(account_request["contact"]) != set(account_info["contact"])):
         code, result, headers = _send_signed_request(jws_header["kid"], account_request)
         if code == 200:
-            log.info("Account updated with latest contact informations.")
+            log.debug("  - Account updated with latest contact informations.")
         else:
-            raise ValueError("Error register update: {0} {1}".format(code, result))
+            raise ValueError("Error registering updates for the account: {0} {1}".format(code, result))
 
     # new order
-    log.info("Certification issuance: ask for a new Order")
+    log.info("Request to the ACME server an order to validate domains.")
     new_order = { "identifiers": [{"type": "dns", "value": domain} for domain in domains]}
     code, result, headers = _send_signed_request(acme_config["newOrder"], new_order)
     order = json.loads(result.decode("utf8"))
     if code == 201:
         order_location = dict(headers).get("Location")
-        log.info("Order received: {0}".format(order_location))
+        log.debug("  - Order received: {0}".format(order_location))
         if order["status"] != "pending":
             raise ValueError("Order status is not pending, we can't use it: {0}".format(order))
     elif (code == 403
@@ -164,16 +164,16 @@ def get_crt(config, log=LOGGER):
 
     # complete each authorization challenge
     for authz in order["authorizations"]:
-        log.info("Completing authz: {0}".format(authz))
+        log.info("Process challenge for authorization: {0}".format(authz))
 
         # get new challenge
         resp = webclient.open(authz)
         authorization = json.loads(resp.read().decode("utf8"))
         if resp.getcode() != 200:
-            raise ValueError("Error requesting challenges: {0} {1}".format(resp.getcode(), authorization))
+            raise ValueError("Error fetching challenges: {0} {1}".format(resp.getcode(), authorization))
         domain = authorization["identifier"]["value"]
 
-        log.info("Create and install DNS TXT challenge resource for: {0}".format(domain))
+        log.info("Install DNS TXT resource for domain: {0}".format(domain))
         challenge = [c for c in authorization["challenges"] if c["type"] == "dns-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge["token"])
         keyauthorization = "{0}.{1}".format(token, thumbprint)
@@ -191,13 +191,13 @@ def get_crt(config, log=LOGGER):
         number_check_fail = 1
         while challenge_verified is False:
             try:
-                log.info('Try {0}: Check resource with value "{1}" exits on nameservers: {2}'.format(number_check_fail, keydigest64, resolver.nameservers))
+                log.debug('Self test (try: {0}): Check resource with value "{1}" exits on nameservers: {2}'.format(number_check_fail, keydigest64, resolver.nameservers))
                 challenges = resolver.query(dnsrr_domain, rdtype="TXT")
                 for response in challenges.rrset:
-                    log.info(".. Found value {0}".format(response.to_text()))
+                    log.debug("  - Found value {0}".format(response.to_text()))
                     challenge_verified = challenge_verified or response.to_text() == '"{0}"'.format(keydigest64)
             except dns.exception.DNSException as dnsexception:
-                log.info("Info: retry, because a DNS error occurred while checking challenge: {0} : {1}".format(type(dnsexception).__name__, dnsexception))
+                log.debug("  - Will retry as a DNS error occurred while checking challenge: {0} : {1}".format(type(dnsexception).__name__, dnsexception))
             finally:
                 if challenge_verified is False:
                     if number_check_fail >= 10:
@@ -205,32 +205,30 @@ def get_crt(config, log=LOGGER):
                     number_check_fail = number_check_fail + 1
                     time.sleep(2)
 
-        log.info("Ask ACME server to perform checks.")
+        log.info("Ask ACME server to validate thise challenge.")
         code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
         if code != 200:
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
-
-        log.info("Waiting challenge to be verified.")
         try:
             while True:
                 try:
                     resp = webclient.open(challenge["url"])
                     challenge_status = json.loads(resp.read().decode("utf8"))
                 except IOError as e:
-                    raise ValueError("Error checking challenge: {0} {1}".format(
+                    raise ValueError("Error during challenge validation: {0} {1}".format(
                         e.code, json.loads(e.read().decode("utf8"))))
                 if challenge_status["status"] == "pending":
                     time.sleep(2)
                 elif challenge_status["status"] == "valid":
-                    log.info("Domain {0} verified!".format(domain))
+                    log.info("ACME has verified challenge for domain: {0}".format(domain))
                     break
                 else:
-                    raise ValueError("{0} challenge did not pass: {1}".format(
+                    raise ValueError("Challenge for domain {0} did not pass: {1}".format(
                         domain, challenge_status))
         finally:
             _update_dns(dnsrr_set, "delete")
 
-    log.info("Finalizing the order...")
+    log.info("Request to finalize the order (all chalenge have been completed)")
     resp = webclient.open(order_location)
     finalize = json.loads(resp.read().decode("utf8"))
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
@@ -269,8 +267,8 @@ def main(argv):
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="""
 This script automates the process of getting a signed TLS certificate
-chain from Let's Encrypt using the ACME protocol and its DNS verification.
-It will need to have access to your private account key and dns server
+chain from any CA using the ACME protocol and its DNS verification.
+It will need to have access to your private ACME account key and dns server
 so PLEASE READ THROUGH IT!
 It's around 300 lines, so it won't take long.
 
