@@ -62,7 +62,8 @@ def get_crt(config, log=LOGGER):
 
     # main code
     webclient = urllib.request.build_opener()
-    webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0')]
+    webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0'), ('Accept-Language', config["acmednstiny"].get("Language", "en"))]
+
     log.info("Read ACME directory.")
     directory = webclient.open(config["acmednstiny"]["ACMEDirectory"])
     acme_config = json.loads(directory.read().decode("utf8"))
@@ -285,7 +286,7 @@ See example.ini file to configure correctly this script.
 
     config = ConfigParser()
     config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory",
-                                      "CheckChallengeDelay": 2},
+                                      "CheckChallengeDelay": 3},
                       "DNS": {"Port": "53"}})
     config.read(args.configfile)
 
