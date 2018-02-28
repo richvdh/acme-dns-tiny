@@ -83,8 +83,8 @@ class TestACMEDNSTiny(unittest.TestCase):
         
         with self.assertLogs(level='INFO') as adnslog:
             acme_dns_tiny.main([self.configs['dnsHostIP']])
-        self.assertIn("INFO:acme_dns_tiny:A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if exists or directly the DNS Host configuration.",
-            adnslog.output)
+        self.assertIn("A and/or AAAA DNS resources not found for configured dns host: we will use either resource found if one exists or directly the DNS Host configuration."
+            , adnslog.output)
         certchain = sys.stdout.getvalue()
         
         sys.stdout.close()
