@@ -67,7 +67,7 @@ def get_crt(config, log=LOGGER):
     log.info("Fetch informations from the ACME directory.")
     directory = webclient.open(config["acmednstiny"]["ACMEDirectory"])
     acme_config = json.loads(directory.read().decode("utf8"))
-    terms_service = acme_config.get("meta", {}).get("termsOfService")
+    terms_service = acme_config.get("meta", {}).get("termsOfService", "")
 
     log.info("Prepare DNS keyring and resolver.")
     keyring = dns.tsigkeyring.from_text({config["TSIGKeyring"]["KeyName"]: config["TSIGKeyring"]["KeyValue"]})
@@ -114,10 +114,14 @@ def get_crt(config, log=LOGGER):
         for san in subject_alt_names.group(1).split(", "):
             if san.startswith("DNS:"):
                 domains.add(san[4:])
+    if len(domains) == 0:
+        raise ValueError("Didn't find any domain to validate in the provided CSR.")
 
     log.info("Register ACME Account.")
     account_request = {}
-    account_request["termsOfServiceAgreed"] = True
+    if terms_service != "":
+        account_request["termsOfServiceAgreed"] = True
+        log.warning("Terms of service exists and will be automatically agreed, please read them: {0}".format(terms_service))
     account_request["contact"] = config["acmednstiny"].get("Contacts", "").split(';')
     if account_request["contact"] == "":
         del account_request["contact"]
@@ -126,9 +130,8 @@ def get_crt(config, log=LOGGER):
     account_info = {}
     if code == 201:
         jws_header["kid"] = dict(headers).get("Location")
-        log.info("Registered! (account: '{0}')".format(jws_header["kid"]))
-        account_info["termsOfServiceAgreed"] = True
-        account_info["contact"] = account_request["contact"]
+        log.debug("  - Registered a new account: '{0}'".format(jws_header["kid"]))
+        account_info = json.loads(result.decode("utf8"))
     elif code == 200:
         jws_header["kid"] = dict(headers).get("Location")
         log.debug("  - Account is already registered: '{0}'".format(jws_header["kid"]))
