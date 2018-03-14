@@ -209,7 +209,7 @@ def get_crt(config, log=LOGGER):
                     time.sleep(2)
 
         log.info("Waiting for {0} seconds before asking ACME server to validate challenge.".format(max(5, config["acmednstiny"].getint("CheckChallengeDelay"))))
-        max(5, time.sleep(config["acmednstiny"].getint("CheckChallengeDelay")))
+        time.sleep(max(5, config["acmednstiny"].getint("CheckChallengeDelay")))
         code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
         if code != 200:
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
