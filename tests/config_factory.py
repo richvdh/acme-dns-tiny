@@ -91,7 +91,7 @@ def generate_acme_dns_tiny_config():
     config.read(goodCName)
 
     goodCNameWithoutCSR = NamedTemporaryFile(delete=False)
-    del config["acmednstiny"]["CSRFile"]
+    config.remove_option("acmednstiny", "CSRFile")
     with open(goodCNameWithoutCSR.name, 'w') as configfile:
         config.write(configfile)
 
