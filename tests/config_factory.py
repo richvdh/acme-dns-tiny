@@ -141,7 +141,7 @@ def generate_acme_dns_tiny_config():
     return {
         # configs
         "goodCName": goodCName,
-        "goodCNameWithoutCSR": goodCNameWithoutCSR,
+        "goodCNameWithoutCSR": goodCNameWithoutCSR.name,
         "wildCName": wildCName.name,
         "dnsHostIP": dnsHostIP.name,
         "goodSAN": goodSAN.name,
