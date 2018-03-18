@@ -128,6 +128,16 @@ class TestACMEDNSTiny(unittest.TestCase):
         
         self.assertCertificateChain(certchain)
 
+    def test_success_cli_with_csr_option(self):
+        """ Successfully issue a certificate via command line interface using CSR option"""
+        certout, err = subprocess.Popen([
+            "python3", "acme_dns_tiny.py", ['--csr', sefl.configs['cnameCSR'], self.configs['goodCNameWithoutCSR']]
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+
+        certchain = certout.decode("utf8")
+
+        self.assertCertificateChain(certchain)
+
     def test_weak_key(self):
         """ Let's Encrypt rejects weak keys """
         self.assertRaisesRegex(ValueError,
