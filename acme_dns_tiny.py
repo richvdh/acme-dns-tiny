@@ -269,20 +269,17 @@ def get_crt(config, log=LOGGER):
 def main(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="""
-This script automates the process of getting a signed TLS certificate
-chain from any CA using the ACME protocol and its DNS verification.
-It will need to have access to your private ACME account key and dns server
-so PLEASE READ THROUGH IT!
-It's around 300 lines, so it won't take long.
+        description="Tiny ACME client to get TLS certificate by responding to DNS challenges.",
+        epilog="""As the script requires access to your private ACME account key and dns server,
+so PLEASE READ THROUGH IT (it's about 300 lines, so it won't take long) !
 
-===Example Usage===
-python3 acme_dns_tiny.py ./example.ini > chain.crt
-See example.ini file to configure correctly this script.
-===================
-"""
+Example: requests certificate chain and store it in chain.crt
+  python3 acme_dns_tiny.py ./example.ini > chain.crt
+
+See example.ini file to configure correctly this script."""
     )
     parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="suppress output except for errors")
+    parser.add_argument("--csr", help="specifies CSR file path to use instead of the CSRFile option from the configuration file.")
     parser.add_argument("configfile", help="path to your configuration file")
     args = parser.parse_args(argv)
 
@@ -291,6 +288,9 @@ See example.ini file to configure correctly this script.
                                       "CheckChallengeDelay": 3},
                       "DNS": {"Port": "53"}})
     config.read(args.configfile)
+
+    if args.csr :
+        config["acmednstiny"]["csrfile"] = args.csrfile
 
     if (set(["accountkeyfile", "csrfile", "acmedirectory", "checkchallengedelay"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
