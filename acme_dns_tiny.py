@@ -284,16 +284,15 @@ See example.ini file to configure correctly this script."""
     args = parser.parse_args(argv)
 
     config = ConfigParser()
-    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory",
-                                      "CheckChallengeDelay": 3},
-                      "DNS": {"Port": "53",
-                              "TTL": "10"}})
+    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory"},
+                      "DNS": {"Port": 53,
+                              "TTL": 10}})
     config.read(args.configfile)
 
     if args.csr :
         config.set("acmednstiny", "csrfile", args.csr)
 
-    if (set(["accountkeyfile", "csrfile", "acmedirectory", "checkchallengedelay"]) - set(config.options("acmednstiny"))
+    if (set(["accountkeyfile", "csrfile", "acmedirectory"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
         or set(["zone", "host", "port", "ttl"]) - set(config.options("DNS"))):
         raise ValueError("Some required settings are missing.")
