@@ -182,7 +182,7 @@ def get_crt(config, log=LOGGER):
         keyauthorization = "{0}.{1}".format(token, thumbprint)
         keydigest64 = _b64(hashlib.sha256(keyauthorization.encode("utf8")).digest())
         dnsrr_domain = "_acme-challenge.{0}.".format(domain)
-        dnsrr_set = dns.rrset.from_text(dnsrr_domain, config["DNS"]["TTL"], "IN", "TXT",  '"{0}"'.format(keydigest64))
+        dnsrr_set = dns.rrset.from_text(dnsrr_domain, config["DNS"].getint("TTL"), "IN", "TXT",  '"{0}"'.format(keydigest64))
         try:
             _update_dns(dnsrr_set, "add")
         except dns.exception.DNSException as dnsexception:
