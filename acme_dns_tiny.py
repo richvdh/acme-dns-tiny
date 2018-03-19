@@ -208,7 +208,7 @@ def get_crt(config, log=LOGGER):
                     number_check_fail = number_check_fail + 1
                     time.sleep(config["DNS"].getint("TTL"))
 
-        log.info("Waiting for one TTL ({0} seconds) before asking ACME server to validate challenge.".format(config["DNS"].getint("TTL")))
+        log.info("Waiting for 1 TTL ({0} seconds) before asking ACME server to validate challenge.".format(config["DNS"].getint("TTL")))
         time.sleep(config["DNS"].getint("TTL"))
         code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
         if code != 200:
