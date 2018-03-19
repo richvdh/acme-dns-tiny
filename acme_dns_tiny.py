@@ -182,14 +182,14 @@ def get_crt(config, log=LOGGER):
         keyauthorization = "{0}.{1}".format(token, thumbprint)
         keydigest64 = _b64(hashlib.sha256(keyauthorization.encode("utf8")).digest())
         dnsrr_domain = "_acme-challenge.{0}.".format(domain)
-        dnsrr_set = dns.rrset.from_text(dnsrr_domain, 300, "IN", "TXT",  '"{0}"'.format(keydigest64))
+        dnsrr_set = dns.rrset.from_text(dnsrr_domain, config["DNS"].getint("TTL"), "IN", "TXT",  '"{0}"'.format(keydigest64))
         try:
             _update_dns(dnsrr_set, "add")
         except dns.exception.DNSException as dnsexception:
             raise ValueError("Error updating DNS records: {0} : {1}".format(type(dnsexception).__name__, str(dnsexception)))
 
-        log.info("Waiting for {0} seconds before starting self challenge check.".format(config["acmednstiny"].getint("CheckChallengeDelay")))
-        time.sleep(config["acmednstiny"].getint("CheckChallengeDelay"))
+        log.info("Waiting for 1 TTL ({0} seconds) before starting self challenge check.".format(config["DNS"].getint("TTL")))
+        time.sleep(config["DNS"].getint("TTL"))
         challenge_verified = False
         number_check_fail = 1
         while challenge_verified is False:
@@ -206,10 +206,10 @@ def get_crt(config, log=LOGGER):
                     if number_check_fail >= 10:
                         raise ValueError("Error checking challenge, value not found: {0}".format(keydigest64))
                     number_check_fail = number_check_fail + 1
-                    time.sleep(2)
+                    time.sleep(config["DNS"].getint("TTL"))
 
-        log.info("Waiting for {0} seconds before asking ACME server to validate challenge.".format(max(10, config["acmednstiny"].getint("CheckChallengeDelay"))))
-        time.sleep(max(10, config["acmednstiny"].getint("CheckChallengeDelay")))
+        log.info("Waiting for 1 TTL ({0} seconds) before asking ACME server to validate challenge.".format(config["DNS"].getint("TTL")))
+        time.sleep(config["DNS"].getint("TTL"))
         code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
         if code != 200:
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
@@ -284,17 +284,17 @@ See example.ini file to configure correctly this script."""
     args = parser.parse_args(argv)
 
     config = ConfigParser()
-    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory",
-                                      "CheckChallengeDelay": 3},
-                      "DNS": {"Port": "53"}})
+    config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory"},
+                      "DNS": {"Port": 53,
+                              "TTL": 10}})
     config.read(args.configfile)
 
     if args.csr :
         config.set("acmednstiny", "csrfile", args.csr)
 
-    if (set(["accountkeyfile", "csrfile", "acmedirectory", "checkchallengedelay"]) - set(config.options("acmednstiny"))
+    if (set(["accountkeyfile", "csrfile", "acmedirectory"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
-        or set(["zone", "host", "port"]) - set(config.options("DNS"))):
+        or set(["zone", "host", "port", "ttl"]) - set(config.options("DNS"))):
         raise ValueError("Some required settings are missing.")
 
     LOGGER.setLevel(args.quiet or LOGGER.level)

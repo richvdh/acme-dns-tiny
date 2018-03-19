@@ -5,11 +5,11 @@ from subprocess import Popen
 # domain with server.py running on it for testing
 DOMAIN = os.getenv("GITLABCI_DOMAIN")
 ACMEDIRECTORY = os.getenv("GITLABCI_ACMEDIRECTORY_V2", "https://acme-staging-v02.api.letsencrypt.org/directory")
-CHALLENGEDELAY = os.getenv("GITLABCI_CHALLENGEDELAY", "3")
 DNSHOST = os.getenv("GITLABCI_DNSHOST")
 DNSHOSTIP = os.getenv("GITLABCI_DNSHOSTIP")
 DNSZONE = os.getenv("GITLABCI_DNSZONE")
 DNSPORT = os.getenv("GITLABCI_DNSPORT", "53")
+DNSTTL = os.getenv("GITLABCI_DNSTTL", "10")
 TSIGKEYNAME = os.getenv("GITLABCI_TSIGKEYNAME")
 TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
 TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
@@ -32,7 +32,6 @@ def generate_config():
     parser["acmednstiny"]["AccountKeyFile"] = account_key.name
     parser["acmednstiny"]["CSRFile"] = domain_csr.name
     parser["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
-    parser["acmednstiny"]["CheckChallengeDelay"] = CHALLENGEDELAY
     parser["acmednstiny"]["Contacts"] = "mailto:mail@example.com"
     parser["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
     parser["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
@@ -40,6 +39,7 @@ def generate_config():
     parser["DNS"]["Host"] = DNSHOST
     parser["DNS"]["Port"] = DNSPORT
     parser["DNS"]["Zone"] = DNSZONE
+    parser["DNS"]["TTL"] = DNSTTL
 
     config = NamedTemporaryFile(delete=False)
     with open(config.name, 'w') as configfile:
