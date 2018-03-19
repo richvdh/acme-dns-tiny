@@ -90,8 +90,12 @@ def generate_acme_dns_tiny_config():
     config = configparser.ConfigParser()
     config.read(goodCName)
 
+    goodCNameWithoutCSR = NamedTemporaryFile(delete=False)
+    config.remove_option("acmednstiny", "CSRFile")
+    with open(goodCNameWithoutCSR.name, 'w') as configfile:
+        config.write(configfile)
+
     wildCName = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = account_key
     config["acmednstiny"]["CSRFile"] = wilddomain_csr.name
     with open(wildCName.name, 'w') as configfile:
         config.write(configfile)
@@ -103,13 +107,11 @@ def generate_acme_dns_tiny_config():
     config["DNS"]["Host"] = DNSHOST
 
     goodSAN = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = account_key
     config["acmednstiny"]["CSRFile"] = san_csr.name
     with open(goodSAN.name, 'w') as configfile:
         config.write(configfile)
 
     wildSAN = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = account_key
     config["acmednstiny"]["CSRFile"] = wildsan_csr.name
     with open(wildSAN.name, 'w') as configfile:
         config.write(configfile)
@@ -139,6 +141,7 @@ def generate_acme_dns_tiny_config():
     return {
         # configs
         "goodCName": goodCName,
+        "goodCNameWithoutCSR": goodCNameWithoutCSR.name,
         "wildCName": wildCName.name,
         "dnsHostIP": dnsHostIP.name,
         "goodSAN": goodSAN.name,
@@ -149,6 +152,8 @@ def generate_acme_dns_tiny_config():
         "missingDNS": missingDNS.name,
         # key (just to simply remove the account from staging server)
         "accountkey": account_key,
+        # CName CSR file to use with goodCNameWithoutCSR
+        "cnameCSR": domain_csr,
     }
 
 # generate two account keys to roll over them
