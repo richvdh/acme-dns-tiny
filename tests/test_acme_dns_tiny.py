@@ -63,6 +63,19 @@ class TestACMEDNSTiny(unittest.TestCase):
         
         self.assertCertificateChain(certchain)
 
+    def test_success_cn_with_csr_option(self):
+        """ Successfully issue a certificate using CSR option outside from the config file"""
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+
+        acme_dns_tiny.main(["--csr", self.configs['cnameCSR'], self.configs['goodCNameWithoutCSR']])
+        certchain = sys.stdout.getvalue()
+
+        sys.stdout.close()
+        sys.stdout = old_stdout
+
+        self.assertCertificateChain(certchain)
+
     def test_success_wild_cn(self):
         """ Successfully issue a certificate via a wildcard common name """
         old_stdout = sys.stdout

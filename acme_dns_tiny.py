@@ -290,7 +290,7 @@ See example.ini file to configure correctly this script."""
     config.read(args.configfile)
 
     if args.csr :
-        config["acmednstiny"]["csrfile"] = args.csrfile
+        config.set("acmednstiny", "csrfile", args.csr)
 
     if (set(["accountkeyfile", "csrfile", "acmedirectory", "checkchallengedelay"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
