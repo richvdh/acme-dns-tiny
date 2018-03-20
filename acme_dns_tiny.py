@@ -185,7 +185,7 @@ def get_crt(config, log=LOGGER):
             dnsrr_domain = (response.to_text() for response in resolver.query(dnsrr_domain, rdtype="CNAME"))
             log.info("  - A CNAME resource has been found for this domain, will install TXT on {0}".format(dnsrr_domain))
         except dns.exception.DNSException as dnsexception:
-            log.debug("  - Not any CNAME resource has been found for this domain ({1}), will install TXT directly on {0}".format(dnsrr_domain, dnsexception.msg))
+            log.debug("  - Not any CNAME resource has been found for this domain ({1}), will install TXT directly on {0}".format(dnsrr_domain, type(dnsexception).__name__))
         dnsrr_set = dns.rrset.from_text(dnsrr_domain, config["DNS"].getint("TTL"), "IN", "TXT",  '"{0}"'.format(keydigest64))
         try:
             _update_dns(dnsrr_set, "add")
