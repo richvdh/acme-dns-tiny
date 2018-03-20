@@ -7,7 +7,6 @@ from urllib.error import HTTPError
 
 LOGGER = logging.getLogger('acme_dns_tiny')
 LOGGER.addHandler(logging.StreamHandler())
-LOGGER.setLevel(logging.INFO)
 
 def get_crt(config, log=LOGGER):
     # helper function base64 encode as defined in acme spec
@@ -130,7 +129,7 @@ def get_crt(config, log=LOGGER):
     account_info = {}
     if code == 201:
         jws_header["kid"] = dict(headers).get("Location")
-        log.debug("  - Registered a new account: '{0}'".format(jws_header["kid"]))
+        log.info("  - Registered a new account: '{0}'".format(jws_header["kid"]))
         account_info = json.loads(result.decode("utf8"))
     elif code == 200:
         jws_header["kid"] = dict(headers).get("Location")
@@ -276,7 +275,8 @@ Example: requests certificate chain and store it in chain.crt
 
 See example.ini file to configure correctly this script."""
     )
-    parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="suppress output except for errors")
+    parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="show only errors on stderr")
+    parser.add_argument("--verbose", action="store_const", const=logging.DEBUG, help="show all debug informations on stderr")
     parser.add_argument("--csr", help="specifies CSR file path to use instead of the CSRFile option from the configuration file.")
     parser.add_argument("configfile", help="path to your configuration file")
     args = parser.parse_args(argv)
@@ -295,7 +295,7 @@ See example.ini file to configure correctly this script."""
         or set(["zone", "host", "port", "ttl"]) - set(config.options("DNS"))):
         raise ValueError("Some required settings are missing.")
 
-    LOGGER.setLevel(args.quiet or LOGGER.level)
+    LOGGER.setLevel(args.verbose or args.quiet or logging.INFO)
     signed_crt = get_crt(config, log=LOGGER)
     sys.stdout.write(signed_crt)
 
