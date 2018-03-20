@@ -195,8 +195,7 @@ def get_crt(config, log=LOGGER):
         while challenge_verified is False:
             try:
                 log.debug('Self test (try: {0}): Check resource with value "{1}" exits on nameservers: {2}'.format(number_check_fail, keydigest64, resolver.nameservers))
-                challenges = resolver.query(dnsrr_domain, rdtype="TXT")
-                for response in challenges.rrset:
+                for response in resolver.query(dnsrr_domain, rdtype="TXT").rrset:
                     log.debug("  - Found value {0}".format(response.to_text()))
                     challenge_verified = challenge_verified or response.to_text() == '"{0}"'.format(keydigest64)
             except dns.exception.DNSException as dnsexception:
@@ -208,8 +207,7 @@ def get_crt(config, log=LOGGER):
                     number_check_fail = number_check_fail + 1
                     time.sleep(config["DNS"].getint("TTL"))
 
-        log.info("Waiting for 1 TTL ({0} seconds) before asking ACME server to validate challenge.".format(config["DNS"].getint("TTL")))
-        time.sleep(config["DNS"].getint("TTL"))
+        log.info("Asking ACME server to validate challenge.")
         code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
         if code != 200:
             raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
