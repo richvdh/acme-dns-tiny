@@ -184,8 +184,8 @@ def get_crt(config, log=LOGGER):
         try: # a CNAME resource can be used for advanced TSIG configuration, trying to follow it
             dnsrr_domain = (response.to_text() for response in resolver.query(dnsrr_domain, rdtype="CNAME"))
             log.info("  - A CNAME resource has been found for this domain, will install TXT on {0}".format(dnsrr_domain))
-        except dns.resolver.NoAnswer as noAnswer:
-            log.debug("  - Not any CNAME resource has been found for this domain, will install TXT directly on {0}".format(dnsrr_domain))
+        except dns.exception.DNSException as dnsexception:
+            log.debug("  - Not any CNAME resource has been found for this domain ({1}), will install TXT directly on {0}".format(dnsrr_domain, dnsexception.msg))
         dnsrr_set = dns.rrset.from_text(dnsrr_domain, config["DNS"].getint("TTL"), "IN", "TXT",  '"{0}"'.format(keydigest64))
         try:
             _update_dns(dnsrr_set, "add")
