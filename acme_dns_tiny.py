@@ -181,8 +181,9 @@ def get_crt(config, log=LOGGER):
         keyauthorization = "{0}.{1}".format(token, thumbprint)
         keydigest64 = _b64(hashlib.sha256(keyauthorization.encode("utf8")).digest())
         dnsrr_domain = "_acme-challenge.{0}.".format(domain)
-        try: # a CNAME resource can be used for advanced TSIG configuration, trying to follow it
-            dnsrr_domain = (response.to_text() for response in resolver.query(dnsrr_domain, rdtype="CNAME"))
+        try: # a CNAME resource can be used for advanced TSIG configuration
+            # Note: the CNAME target has to be of "non-CNAME" type to be able to add TXT records aside it
+            dnsrr_domain = [response.to_text() for response in resolver.query(dnsrr_domain, rdtype="CNAME")][0]
             log.info("  - A CNAME resource has been found for this domain, will install TXT on {0}".format(dnsrr_domain))
         except dns.exception.DNSException as dnsexception:
             log.debug("  - Not any CNAME resource has been found for this domain ({1}), will install TXT directly on {0}".format(dnsrr_domain, type(dnsexception).__name__))
