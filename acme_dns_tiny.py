@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-import os, argparse, subprocess, json, sys, base64, binascii, time, hashlib, re, copy, textwrap, logging
+import argparse, subprocess, requests, json, sys, base64, binascii, time, hashlib, re, copy, logging, configparser
 import dns.resolver, dns.tsigkeyring, dns.update
-from configparser import ConfigParser
-import urllib.request
-from urllib.error import HTTPError
 
 LOGGER = logging.getLogger('acme_dns_tiny')
 LOGGER.addHandler(logging.StreamHandler())
@@ -39,7 +36,7 @@ def get_crt(config, log=LOGGER):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
-        protected["nonce"] = jws_nonce or webclient.open(acme_config["newNonce"]).getheader("Replay-Nonce", None)
+        protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
         protected["url"] = url
         if url == acme_config["newAccount"]:
             del protected["kid"]
@@ -48,24 +45,27 @@ def get_crt(config, log=LOGGER):
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", config["acmednstiny"]["AccountKeyFile"]],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
-        data = json.dumps({
+        jose = {
             "protected": protected64, "payload": payload64,"signature": _b64(signature)
-        })
+        }
         try:
-            resp = webclient.open(url, data.encode("utf8"))
-        except HTTPError as httperror:
-            resp = httperror
+            resp = requests.post(url, json=jose, headers=joseheaders)
+        except requests.exceptions.RequestException as error:
+            resp = error.response
         finally:
-            jws_nonce = resp.getheader("Replay-Nonce", None)
-            return resp.getcode(), resp.read(), resp.getheaders()
+            jws_nonce = resp.headers['Replay-Nonce']
+            return resp.status_code, resp.json(), resp.headers
 
     # main code
-    webclient = urllib.request.build_opener()
-    webclient.addheaders = [('User-Agent', 'acme-dns-tiny/2.0'), ('Accept-Language', config["acmednstiny"].get("Language", "en"))]
+    adtheaders =  {'User-Agent': 'acme-dns-tiny/2.0',
+        'Accept-Language': config["acmednstiny"].get("Language", "en")
+    }
+    joseheaders=copy.deepcopy(adtheaders)
+    joseheaders['Content-Type']='application/jose+json'
 
     log.info("Fetch informations from the ACME directory.")
-    directory = webclient.open(config["acmednstiny"]["ACMEDirectory"])
-    acme_config = json.loads(directory.read().decode("utf8"))
+    directory = requests.get(config["acmednstiny"]["ACMEDirectory"], headers=adtheaders)
+    acme_config = directory.json()
     terms_service = acme_config.get("meta", {}).get("termsOfService", "")
 
     log.info("Prepare DNS keyring and resolver.")
@@ -128,15 +128,15 @@ def get_crt(config, log=LOGGER):
     code, result, headers = _send_signed_request(acme_config["newAccount"], account_request)
     account_info = {}
     if code == 201:
-        jws_header["kid"] = dict(headers).get("Location")
+        jws_header["kid"] = headers['Location']
         log.info("  - Registered a new account: '{0}'".format(jws_header["kid"]))
-        account_info = json.loads(result.decode("utf8"))
+        account_info = result
     elif code == 200:
-        jws_header["kid"] = dict(headers).get("Location")
+        jws_header["kid"] = headers['Location']
         log.debug("  - Account is already registered: '{0}'".format(jws_header["kid"]))
 
         code, result, headers = _send_signed_request(jws_header["kid"], {})
-        account_info = json.loads(result.decode("utf8"))
+        account_info = result
     else:
         raise ValueError("Error registering account: {0} {1}".format(code, result))
 
@@ -152,15 +152,15 @@ def get_crt(config, log=LOGGER):
     log.info("Request to the ACME server an order to validate domains.")
     new_order = { "identifiers": [{"type": "dns", "value": domain} for domain in domains]}
     code, result, headers = _send_signed_request(acme_config["newOrder"], new_order)
-    order = json.loads(result.decode("utf8"))
+    order = result
     if code == 201:
-        order_location = dict(headers).get("Location")
+        order_location = headers['Location']
         log.debug("  - Order received: {0}".format(order_location))
         if order["status"] != "pending":
             raise ValueError("Order status is not pending, we can't use it: {0}".format(order))
     elif (code == 403
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
-        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], dict(headers)["Link"], order["instance"]))
+        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], headers['Link'], order["instance"]))
     else:
         raise ValueError("Error getting new Order: {0} {1}".format(code, result))
 
@@ -169,10 +169,10 @@ def get_crt(config, log=LOGGER):
         log.info("Process challenge for authorization: {0}".format(authz))
 
         # get new challenge
-        resp = webclient.open(authz)
-        authorization = json.loads(resp.read().decode("utf8"))
-        if resp.getcode() != 200:
-            raise ValueError("Error fetching challenges: {0} {1}".format(resp.getcode(), authorization))
+        resp = requests.get(authz, headers=adtheaders)
+        authorization = resp.json()
+        if resp.status_code != 200:
+            raise ValueError("Error fetching challenges: {0} {1}".format(resp.status_code, authorization))
         domain = authorization["identifier"]["value"]
 
         log.info("Install DNS TXT resource for domain: {0}".format(domain))
@@ -219,11 +219,11 @@ def get_crt(config, log=LOGGER):
         try:
             while True:
                 try:
-                    resp = webclient.open(challenge["url"])
-                    challenge_status = json.loads(resp.read().decode("utf8"))
-                except IOError as e:
+                    resp = requests.get(challenge["url"], headers=adtheaders)
+                    challenge_status = resp.json()
+                except requests.exceptions.RequestException as error:
                     raise ValueError("Error during challenge validation: {0} {1}".format(
-                        e.code, json.loads(e.read().decode("utf8"))))
+                        error.response.status_code, error.response.text()))
                 if challenge_status["status"] == "pending":
                     time.sleep(2)
                 elif challenge_status["status"] == "valid":
@@ -236,8 +236,8 @@ def get_crt(config, log=LOGGER):
             _update_dns(dnsrr_set, "delete")
 
     log.info("Request to finalize the order (all chalenge have been completed)")
-    resp = webclient.open(order_location)
-    finalize = json.loads(resp.read().decode("utf8"))
+    resp = requests.get(order_location, headers=adtheaders)
+    finalize = resp.json()
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
     if code != 200:
@@ -245,14 +245,18 @@ def get_crt(config, log=LOGGER):
 
     while True:
         try:
-            resp = webclient.open(order_location)
-            finalize = json.loads(resp.read().decode("utf8"))
-        except IOError as e:
+            resp = requests.get(order_location, headers=adtheaders)
+            resp.raise_for_status()
+            finalize = resp.json()
+        except requests.exceptions.RequestException as error:
             raise ValueError("Error finalizing order: {0} {1}".format(
-                e.code, json.loads(e.read().decode("utf8"))))
+                error.response.status_code, error.response.text()))
 
         if finalize["status"] == "processing":
-            time.sleep(resp.getheader("Retry-After", 2))
+            if resp.headers["Retry-After"]:
+                time.sleep(resp.headers["Retry-After"])
+            else:
+                time.sleep(2)
         elif finalize["status"] == "valid":
             log.info("Order finalized!")
             break
@@ -260,11 +264,11 @@ def get_crt(config, log=LOGGER):
             raise ValueError("Finalizing order {0} got errors: {1}".format(
                 domain, finalize))
     
-    resp = webclient.open(finalize["certificate"])
-    if resp.getcode() != 200:
+    resp = requests.get(finalize["certificate"], headers=adtheaders)
+    if resp.status_code != 200:
         raise ValueError("Finalizing order {0} got errors: {1}".format(
-            resp.getcode(), resp.read.decode("utf8")))
-    certchain = resp.read().decode("utf8")
+            resp.status_code, resp.json()))
+    certchain = resp.text
     
     log.info("Certificate signed and chain received: {0}".format(finalize["certificate"]))
     return certchain
@@ -287,7 +291,7 @@ See example.ini file to configure correctly this script."""
     parser.add_argument("configfile", help="path to your configuration file")
     args = parser.parse_args(argv)
 
-    config = ConfigParser()
+    config = configparser.ConfigParser()
     config.read_dict({"acmednstiny": {"ACMEDirectory": "https://acme-staging-v02.api.letsencrypt.org/directory"},
                       "DNS": {"Port": 53,
                               "TTL": 10}})
