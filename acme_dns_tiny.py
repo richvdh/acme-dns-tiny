@@ -54,7 +54,10 @@ def get_crt(config, log=LOGGER):
             resp = error.response
         finally:
             jws_nonce = resp.headers['Replay-Nonce']
-            return resp.status_code, resp.json(), resp.headers
+            if resp.text != '':
+                return resp.status_code, resp.json(), resp.headers
+            else:
+                return resp.status_code, json.dumps({}), resp.headers
 
     # main code
     adtheaders =  {'User-Agent': 'acme-dns-tiny/2.0',
