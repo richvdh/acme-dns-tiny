@@ -203,7 +203,7 @@ def get_crt(config, log=LOGGER):
         while challenge_verified is False:
             try:
                 log.debug('Self test (try: {0}): Check resource with value "{1}" exits on nameservers: {2}'.format(number_check_fail, keydigest64, resolver.nameservers))
-                for response in resolver.query("_acme-challenge.{0}.".format(domain), rdtype="TXT").rrset:
+                for response in resolver.query(dnsrr_domain, rdtype="TXT").rrset:
                     log.debug("  - Found value {0}".format(response.to_text()))
                     challenge_verified = challenge_verified or response.to_text() == '"{0}"'.format(keydigest64)
             except dns.exception.DNSException as dnsexception:
