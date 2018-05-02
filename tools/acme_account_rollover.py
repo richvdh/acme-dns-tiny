@@ -1,10 +1,8 @@
-import os, argparse, subprocess, os, json, base64, binascii, hashlib, re, copy, logging
-from urllib.request import urlopen
-from urllib.error import HTTPError
+#!/usr/bin/env python3
+import sys, argparse, subprocess, json, base64, binascii, re, copy, logging, requests
 
 LOGGER = logging.getLogger("acme_account_rollover")
 LOGGER.addHandler(logging.StreamHandler())
-LOGGER.setLevel(logging.INFO)
 
 def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOGGER):
     # helper function base64 encode as defined in acme spec
@@ -35,34 +33,56 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
                 "kty": "RSA",
                 "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
             },
+            "kid": None
         }
         return jws_header
 
-    # helper function to sign request with specified key
-    def _sign_request(accountkeypath, jwsheader, payload):
+    # helper function to sign request with specified key path
+    def _sign_request(url, keypath, payload):
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
-        protected = copy.deepcopy(jwsheader)
-        protected["nonce"] = jws_nonce or urlopen(acme_directory).getheader("Replay-Nonce", None)
+        if keypath == accountkeypath:
+            protected = copy.deepcopy(jws_header)
+            protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
+        elif keypath == new_accountkeypath:
+            protected = copy.deepcopy(new_jws_header)
+        if (keypath == new_accountkeypath
+            or url == acme_config["newAccount"]):
+            del protected["kid"]
+        else:
+            del protected["jwk"]
+        protected["url"] = url
         protected64 = _b64(json.dumps(protected).encode("utf8"))
-        signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
+        signature = _openssl("dgst", ["-sha256", "-sign", keypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
         signedjws = {
-            "header": jwsheader, "protected": protected64,
-            "payload": payload64, "signature": _b64(signature),
+            "protected": protected64, "payload": payload64,"signature": _b64(signature)
         }
         return signedjws
 
     # helper function make signed requests
-    def _send_signed_request(accountkeypath, jwsheader, url, payload):
-        data = json.dumps(_sign_request(accountkeypath, jwsheader, payload))
+    def _send_signed_request(url, keypath, payload):
+        nonlocal jws_nonce
+        jws = _sign_request(url, keypath, payload)
         try:
-            resp = urlopen(url, data.encode("utf8"))
-        except HTTPError as httperror:
-            resp = httperror
+            resp = requests.post(url, json=jws, headers=joseheaders)
+        except requests.exceptions.RequestException as error:
+            resp = error.response
         finally:
-            jws_nonce = resp.getheader("Replay-Nonce", None)
-            return resp.getcode(), resp.read(), resp.getheaders()
+            jws_nonce = resp.headers['Replay-Nonce']
+            if resp.text != '':
+                return resp.status_code, resp.json(), resp.headers
+            else:
+                return resp.status_code, json.dumps({}), resp.headers
+
+    # main code
+    adtheaders =  {'User-Agent': 'acme-dns-tiny/2.0'}
+    joseheaders=copy.deepcopy(adtheaders)
+    joseheaders['Content-Type']='application/jose+json'
+
+    log.info("Fetch informations from the ACME directory.")
+    directory = requests.get(acme_directory, headers=adtheaders)
+    acme_config = directory.json()
 
     log.info("Parsing current account key...")
     jws_header = _jws_header(accountkeypath)
@@ -70,27 +90,21 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     log.info("Parsing new account key...")
     new_jws_header = _jws_header(new_accountkeypath)
 
-    # get ACME server configuration from the directory
-    directory = urlopen(acme_directory)
-    acme_config = json.loads(directory.read().decode("utf8"))
     jws_nonce = None
 
-    log.info("Register account to get account URL.")
-    code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["new-reg"], {
-        "resource": "new-reg"
-    })
-
-    if code not in [201, 409]:
-        raise ValueError("Error getting account URL: {0} {1}".format(code,result))
-    account_url = dict(headers).get("Location")
+    log.info("Ask CA provider account url.")
+    code, result, headers = _send_signed_request(acme_config["newAccount"], accountkeypath, {
+        "onlyReturnExisting": True })
+    if code == 200:
+        jws_header["kid"] = headers["Location"]
+    else:
+        raise ValueError("Error looking or account URL: {0} {1}".format(code, result))
 
     log.info("Rolls over account key...")
-    outer_payload = _sign_request(new_accountkeypath, new_jws_header, {
-        "url": acme_config["key-change"], # currently needed by boulder implementation in inner payload
-        "account": account_url,
-        "newKey": new_jws_header["jwk"]})
-    outer_payload["resource"] = "key-change" # currently needed by boulder implementation
-    code, result, headers = _send_signed_request(accountkeypath, jws_header, acme_config["key-change"], outer_payload)
+    outer_payload = _sign_request(jws_header["kid"], new_accountkeypath, {
+        "account": jws_header["kid"],
+        "newKey": new_jws_header["jwk"] })
+    code, result, headers = _send_signed_request(jws_header["kid"], accountkeypath, outer_payload)
 
     if code != 200:
         raise ValueError("Error rolling over account key: {0} {1}".format(code, result))
@@ -99,25 +113,22 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
 def main(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="""
-This script *rolls over* your account key on an ACME server.
+        description="Tiny ACME client to roll over an ACME account key with another one.",
+        epilog="""This script *rolls over* ACME account keys.
 
-It will need to have access to your private account key, so
-PLEASE READ THROUGH IT!
+It will need to have access to the ACME private account keys, so PLEASE READ THROUGH IT!
 It's around 150 lines, so it won't take long.
 
-=== Example Usage ===
-Rollover account.keys from account.key to newaccount.key:
-python3 acme_account_rollover.py --current account.key --new newaccount.key --acme-directory https://acme-staging.api.letsencrypt.org/directory"""
-    )
+Example: roll over account key from account.key to newaccount.key:
+  python3 acme_account_rollover.py --current account.key --new newaccount.key --acme-directory https://acme-staging-v02.api.letsencrypt.org/directory""")
     parser.add_argument("--current", required = True, help="path to the current private account key")
     parser.add_argument("--new", required = True, help="path to the newer private account key to register")
     parser.add_argument("--acme-directory", required = True, help="ACME directory URL of the ACME server where to remove the key")
     parser.add_argument("--quiet", action="store_const", const=logging.ERROR, help="suppress output except for errors")
     args = parser.parse_args(argv)
 
-    LOGGER.setLevel(args.quiet or LOGGER.level)
-    account_rollover(args.current, args.new, args.acme_directory)
+    LOGGER.setLevel(args.quiet or logging.INFO)
+    account_rollover(args.current, args.new, args.acme_directory, log=LOGGER)
 
 if __name__ == "__main__":  # pragma: no cover
     main(sys.argv[1:])
