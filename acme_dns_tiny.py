@@ -108,7 +108,7 @@ def get_crt(config, log=LOGGER):
     log.info("Read CSR to find domains to validate.")
     csr = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-noout", "-text"]).decode("utf8")
     domains = set([])
-    common_name = re.search(r"Subject:\s*?CN\s*?=\s*?([^\s,;/]+)", csr)
+    common_name = re.search(r"Subject:.*?CN\s*?=\s*?([^\s,;/]+)", csr)
     if common_name is not None:
         domains.add(common_name.group(1))
     subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \r?\n +([^\r\n]+)\r?\n", csr, re.MULTILINE | re.DOTALL)
