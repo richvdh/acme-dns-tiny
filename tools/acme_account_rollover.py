@@ -5,12 +5,12 @@ LOGGER = logging.getLogger("acme_account_rollover")
 LOGGER.addHandler(logging.StreamHandler())
 
 def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOGGER):
-    # helper function base64 encode as defined in acme spec
     def _b64(b):
+        """"Encodes string as base64 as specified in ACME RFC """
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
 
-    # helper function to run openssl command
     def _openssl(command, options, communicate=None):
+        """Run openssl command line and raise IOError on non-zero return."""
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
@@ -18,8 +18,8 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
-    # helper function to get jws_header from account key path
     def _jws_header(accountkeypath):
+        """Creates a JWS header according to a specific account key path."""
         accountkey = _openssl("rsa", ["-in", accountkeypath, "-noout", "-text"])
         pub_hex, pub_exp = re.search(
             r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
@@ -37,8 +37,8 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         }
         return jws_header
 
-    # helper function to sign request with specified key path
     def _sign_request(url, keypath, payload):
+        """Signs request with a specific right account key."""
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         if keypath == accountkeypath:
@@ -60,8 +60,8 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         }
         return signedjws
 
-    # helper function make signed requests
     def _send_signed_request(url, keypath, payload):
+        """Sends signed requests to ACME server."""
         nonlocal jws_nonce
         jws = _sign_request(url, keypath, payload)
         try:

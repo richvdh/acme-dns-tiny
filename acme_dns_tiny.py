@@ -6,12 +6,12 @@ LOGGER = logging.getLogger('acme_dns_tiny')
 LOGGER.addHandler(logging.StreamHandler())
 
 def get_crt(config, log=LOGGER):
-    # helper function base64 encode as defined in acme spec
     def _b64(b):
+        """"Encodes string as base64 as specified in ACME RFC """
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
 
-    # helper function to run openssl command
     def _openssl(command, options, communicate=None):
+        """Run openssl command line and raise IOError on non-zero return."""
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
@@ -19,8 +19,8 @@ def get_crt(config, log=LOGGER):
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
-    # helper function to send DNS dynamic update messages
     def _update_dns(rrset, action):
+        """Updates DNS resource by adding or deleting resource."""
         algorithm = dns.name.from_text("{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
         dns_update = dns.update.Update(config["DNS"]["zone"], keyring=keyring, keyalgorithm=algorithm)
         if action == "add":
@@ -31,8 +31,8 @@ def get_crt(config, log=LOGGER):
         dns_update = None
         return resp
 
-    # helper function to send signed requests
     def _send_signed_request(url, payload):
+        """Sends signed requests to ACME server."""
         nonlocal jws_nonce
         payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
