@@ -27,9 +27,9 @@ def get_crt(config, log=LOGGER):
             dns_update.add(rrset.name, rrset)
         elif action == "delete":
             dns_update.delete(rrset.name, rrset)
-        resp = dns.query.tcp(dns_update, config["DNS"]["Host"], port=config.getint("DNS", "Port"))
+        response = dns.query.tcp(dns_update, config["DNS"]["Host"], port=config.getint("DNS", "Port"))
         dns_update = None
-        return resp
+        return response
 
     def _send_signed_request(url, payload):
         """Sends signed requests to ACME server."""
