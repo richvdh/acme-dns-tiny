@@ -60,7 +60,7 @@ def get_crt(config, log=LOGGER):
                 return resp.status_code, json.dumps({}), resp.headers
 
     # main code
-    adtheaders =  {'User-Agent': 'acme-dns-tiny/2.0',
+    adtheaders =  {'User-Agent': 'acme-dns-tiny/2.1',
         'Accept-Language': config["acmednstiny"].get("Language", "en")
     }
     joseheaders=copy.deepcopy(adtheaders)
