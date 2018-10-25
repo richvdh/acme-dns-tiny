@@ -110,7 +110,7 @@ def get_crt(config, log=LOGGER):
 
     log.info("Read CSR to find domains to validate.")
     csr = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-noout", "-text"]).decode("utf8")
-    domains = set([])
+    domains = set()
     common_name = re.search(r"Subject:.*?\s+?CN\s*?=\s*?([^\s,;/]+)", csr)
     if common_name is not None:
         domains.add(common_name.group(1))
