@@ -34,7 +34,10 @@ def get_crt(config, log=LOGGER):
     def _send_signed_request(url, payload):
         """Sends signed requests to ACME server."""
         nonlocal jws_nonce
-        payload64 = _b64(json.dumps(payload).encode("utf8"))
+        if payload == "": # on POST-as-GET, final payload has to be just empty string
+            payload64 = ""
+        else:
+            payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
         protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
         protected["url"] = url
@@ -49,15 +52,15 @@ def get_crt(config, log=LOGGER):
             "protected": protected64, "payload": payload64,"signature": _b64(signature)
         }
         try:
-            resp = requests.post(url, json=jose, headers=joseheaders)
+            response = requests.post(url, json=jose, headers=joseheaders)
         except requests.exceptions.RequestException as error:
-            resp = error.response
+            response = error.response
         finally:
-            jws_nonce = resp.headers['Replay-Nonce']
-            if resp.text != '':
-                return resp.status_code, resp.json(), resp.headers
-            else:
-                return resp.status_code, json.dumps({}), resp.headers
+            jws_nonce = response.headers['Replay-Nonce']
+            try:
+                return response, response.json()
+            except ValueError as error:
+                return response, json.dumps({})
 
     # main code
     adtheaders =  {'User-Agent': 'acme-dns-tiny/2.1',
