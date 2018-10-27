@@ -57,8 +57,6 @@ def account_rollover(old_accountkeypath, new_accountkeypath, acme_directory, log
         if not is_inner:
             protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
         protected["url"] = url
-        log.info("is_inner: {0}".format(is_inner))
-        log.info("Protected header created: {0}".format(protected))
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", keypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
