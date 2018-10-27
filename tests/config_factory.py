@@ -135,6 +135,7 @@ def generate_acme_dns_tiny_config():
 
     invalidTSIGName = NamedTemporaryFile(delete=False)
     config["TSIGKeyring"]["KeyName"] = "{0}.invalid".format(TSIGKEYNAME)
+    config["acmednstiny"]["CSRFile"] = domain_csr
     with open(invalidTSIGName.name, 'w') as configfile:
         config.write(configfile)
 
