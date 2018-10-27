@@ -92,7 +92,7 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
     if http_response.status_code == 200:
         log.info("Account key deactivated !")
     else:
-        raise ValueError("Error while deactivating the account key: {0} {1}".format(code, result))
+        raise ValueError("Error while deactivating the account key: {0} {1}".format(http_response.status_code, result))
 
 def main(argv):
     parser = argparse.ArgumentParser(

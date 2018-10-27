@@ -164,7 +164,7 @@ def get_crt(config, log=LOGGER):
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
         raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], http_response.headers['Link'], order["instance"]))
     else:
-        raise ValueError("Error getting new Order: {0} {1}".format(code, result))
+        raise ValueError("Error getting new Order: {0} {1}".format(http_response.status_code, result))
 
     # complete each authorization challenge
     for authz in order["authorizations"]:
@@ -238,7 +238,7 @@ def get_crt(config, log=LOGGER):
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
     http_response, result = _send_signed_request(order["finalize"], {"csr": csr_der})
     if http_response.status_code != 200:
-        raise ValueError("Error while sending the CSR: {0} {1}".format(code, result))
+        raise ValueError("Error while sending the CSR: {0} {1}".format(http_response.status_code, result))
 
     while True:
         http_response, order = _send_signed_request(order_location, "")
@@ -257,7 +257,7 @@ def get_crt(config, log=LOGGER):
     
     http_response, result = _send_signed_request(order["certificate"], "")
     if http_response.status_code != 200:
-        raise ValueError("Finalizing order {0} got errors: {1}".format(code, result))
+        raise ValueError("Finalizing order {0} got errors: {1}".format(http_response.status_code, result))
 
     log.info("Certificate signed and chain received: {0}".format(order["certificate"]))
     return http_response.text
