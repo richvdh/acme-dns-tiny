@@ -158,8 +158,8 @@ def get_crt(config, log=LOGGER):
     if http_response.status_code == 201:
         order_location = http_response.headers['Location']
         log.debug("  - Order received: {0}".format(order_location))
-        if order["status"] != "pending":
-            raise ValueError("Order status is not pending, we can't use it: {0}".format(order))
+        if order["status"] != "pending" and order["status"] != "ready":
+            raise ValueError("Order status is neither pending neither ready, we can't use it: {0}".format(order))
     elif (http_response.status_code == 403
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
         raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], http_response.headers['Link'], order["instance"]))
@@ -168,8 +168,11 @@ def get_crt(config, log=LOGGER):
 
     # complete each authorization challenge
     for authz in order["authorizations"]:
-        log.info("Process challenge for authorization: {0}".format(authz))
+        if order["status"] == "ready":
+            log.info("No challenge to process: order is already ready.")
+            break;
 
+        log.info("Process challenge for authorization: {0}".format(authz))
         # get new challenge
         http_response, authorization = _send_signed_request(authz, "")
         if http_response.status_code != 200:
