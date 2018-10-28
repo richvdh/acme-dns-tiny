@@ -1,4 +1,4 @@
-import unittest, os, time
+import unittest, os, time, configparser
 import acme_dns_tiny
 from tests.config_factory import generate_acme_account_rollover_config
 from tools.acme_account_deactivate import account_deactivate
@@ -21,9 +21,16 @@ class TestACMEAccountRollover(unittest.TestCase):
         # deactivate account key registration at end of tests
         # (we assume the key has been roll oved)
         account_deactivate(self.configs["newaccountkey"], ACMEDirectory)
-        # close temp files correctly
-        for tmpfile in self.configs:
-            os.remove(self.configs[tmpfile])
+        # Remove temporary files
+        parser = configparser.ConfigParser()
+        parser.read(self.configs['config'])
+        try:
+            os.remove(parser["acmednstiny"]["AccountKeyFile"])
+            os.remove(parser["acmednstiny"]["CSRFile"])
+            os.remove(self.configs["newaccountkey"])
+            os.remove(self.configs['config'])
+        except:
+            pass
         super(TestACMEAccountRollover, self).tearDownClass()
 
     def test_success_account_rollover(self):

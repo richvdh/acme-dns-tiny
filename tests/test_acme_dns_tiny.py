@@ -1,4 +1,4 @@
-import unittest, sys, os, subprocess, time
+import unittest, sys, os, subprocess, time, configparser
 from io import StringIO
 import dns.version
 import acme_dns_tiny
@@ -22,11 +22,19 @@ class TestACMEDNSTiny(unittest.TestCase):
     # To clean ACME staging server and close correctly temporary files
     @classmethod
     def tearDownClass(self):
-        # deactivate account key registration at end of tests
-        account_deactivate(self.configs["accountkey"], ACMEDirectory)
         # close temp files correctly
-        for tmpfile in self.configs:
-            os.remove(self.configs[tmpfile])
+        for conffile in self.configs:
+            parser = configparser.ConfigParser()
+            parser.read(conffile)
+            try:
+                os.remove(parser["acmednstiny"]["AccountKeyFile"])
+                os.remove(parser["acmednstiny"]["CSRFile"])
+                # for each configuraiton, deactivate the account key
+                if conffile != "cnameCSR":
+                    account_deactivate(parser["acmednstiny"]["AccountKeyFile"], ACMEDirectory)
+                os.remove(conffile)
+            except:
+                pass
         super(TestACMEDNSTiny, self).tearDownClass()
 
     # helper function to run openssl command
