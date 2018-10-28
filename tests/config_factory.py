@@ -94,7 +94,8 @@ def generate_acme_dns_tiny_config():
     account_key, domain_key, domain_csr, config = generate_config();
 
     san_conf = NamedTemporaryFile(delete=False)
-    san_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
+    with open("/etc/ssl/openssl.cnf", 'r') as opensslcnf:
+        san_conf.write(opensslcnf.read().encode("utf8"))
     san_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:www.{0}\n".format(DOMAIN).encode("utf8"))
     san_conf.seek(0)
     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key,
@@ -112,7 +113,8 @@ def generate_acme_dns_tiny_config():
     account_key, domain_key, domain_csr, config = generate_config();
 
     wildsan_conf = NamedTemporaryFile(delete=False)
-    wildsan_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
+    with open("/etc/ssl/openssl.cnf", 'r') as opensslcnf:
+        wildsan_conf.write(opensslcnf.read().encode("utf8"))
     wildsan_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:*.{0}\n".format(DOMAIN).encode("utf8"))
     wildsan_conf.seek(0)
     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key,
