@@ -5,12 +5,12 @@ LOGGER = logging.getLogger("acme_account_deactivate")
 LOGGER.addHandler(logging.StreamHandler())
 
 def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
-    # helper function base64 encode as defined in acme spec
     def _b64(b):
+        """"Encodes string as base64 as specified in ACME RFC """
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
 
-    # helper function to run openssl command
     def _openssl(command, options, communicate=None):
+        """Run openssl command line and raise IOError on non-zero return."""
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
@@ -18,10 +18,13 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
-    # helper function to send signed requests
     def _send_signed_request(url, payload):
+        """Sends signed requests to ACME server."""
         nonlocal jws_nonce
-        payload64 = _b64(json.dumps(payload).encode("utf8"))
+        if payload == "": # on POST-as-GET, final payload has to be just empty string
+            payload64 = ""
+        else:
+            payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
         protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
         protected["url"] = url
@@ -32,22 +35,22 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
-        jws = {
-            "protected": protected64, "payload": payload64, "signature": _b64(signature)
+        jose = {
+            "protected": protected64, "payload": payload64,"signature": _b64(signature)
         }
         try:
-            resp = requests.post(url, json=jws, headers=joseheaders)
+            response = requests.post(url, json=jose, headers=joseheaders)
         except requests.exceptions.RequestException as error:
-            resp = error.response
+            response = error.response
         finally:
-            jws_nonce = resp.headers['Replay-Nonce']
-            if resp.text != '':
-                return resp.status_code, resp.json(), resp.headers
-            else:
-                return resp.status_code, json.dumps({}), resp.headers
+            jws_nonce = response.headers['Replay-Nonce']
+            try:
+                return response, response.json()
+            except ValueError as error:
+                return response, json.dumps({})
 
     # main code
-    adtheaders = {'User-Agent': 'acme-dns-tiny/2.0'}
+    adtheaders = {'User-Agent': 'acme-dns-tiny/2.1'}
     joseheaders = copy.deepcopy(adtheaders)
     joseheaders['Content-Type'] = 'application/jose+json'
 
@@ -77,19 +80,19 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
     account_request = {}
     account_request["onlyReturnExisting"] = True
 
-    code, result, headers = _send_signed_request(acme_config["newAccount"], account_request)
-    if code == 200:
-        jws_header["kid"] = headers['Location']
+    http_response, result = _send_signed_request(acme_config["newAccount"], account_request)
+    if http_response.status_code == 200:
+        jws_header["kid"] = http_response.headers['Location']
     else:
-        raise ValueError("Error looking or account URL: {0} {1}".format(code, result))
+        raise ValueError("Error looking or account URL: {0} {1}".format(http_response.status_code, result))
 
     log.info("Deactivating account...")
-    code, result, headers = _send_signed_request(jws_header["kid"], {"status": "deactivated"})
+    http_response, result = _send_signed_request(jws_header["kid"], {"status": "deactivated"})
 
-    if code == 200:
+    if http_response.status_code == 200:
         log.info("Account key deactivated !")
     else:
-        raise ValueError("Error while deactivating the account key: {0} {1}".format(code, result))
+        raise ValueError("Error while deactivating the account key: {0} {1}".format(http_response.status_code, result))
 
 def main(argv):
     parser = argparse.ArgumentParser(

@@ -13,6 +13,7 @@ DNSTTL = os.getenv("GITLABCI_DNSTTL", "10")
 TSIGKEYNAME = os.getenv("GITLABCI_TSIGKEYNAME")
 TSIGKEYVALUE = os.getenv("GITLABCI_TSIGKEYVALUE")
 TSIGALGORITHM = os.getenv("GITLABCI_TSIGALGORITHM")
+CONTACT = os.getenv("GITLABCI_CONTACT")
 
 # generate simple config
 def generate_config():
@@ -32,7 +33,11 @@ def generate_config():
     parser["acmednstiny"]["AccountKeyFile"] = account_key.name
     parser["acmednstiny"]["CSRFile"] = domain_csr.name
     parser["acmednstiny"]["ACMEDirectory"] = ACMEDIRECTORY
-    parser["acmednstiny"]["Contacts"] = "mailto:mail@example.com"
+    if (CONTACT is not None
+        and CONTACT != ""):
+        parser["acmednstiny"]["Contacts"] = "mailto:{0}".format(CONTACT)
+    else:
+        del parser["acmednstiny"]["Contacts"]
     parser["TSIGKeyring"]["KeyName"] = TSIGKEYNAME
     parser["TSIGKeyring"]["KeyValue"] = TSIGKEYVALUE
     parser["TSIGKeyring"]["Algorithm"] = TSIGALGORITHM
@@ -41,97 +46,121 @@ def generate_config():
     parser["DNS"]["Zone"] = DNSZONE
     parser["DNS"]["TTL"] = DNSTTL
 
-    config = NamedTemporaryFile(delete=False)
-    with open(config.name, 'w') as configfile:
-        parser.write(configfile)
-
-    return account_key.name, domain_key.name, domain_csr.name, config.name
+    return account_key.name, domain_key.name, domain_csr.name, parser
 
 # generate account and domain keys
 def generate_acme_dns_tiny_config():
-    # Simple good configuration
-    account_key, domain_key, domain_csr, goodCName = generate_config();
+    # Simple configuration with good options
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
 
-    # CSR for good configuration with wildcard domain
-    wilddomain_csr = NamedTemporaryFile(delete=False)
+    goodCName = NamedTemporaryFile(delete=False)
+    with open(goodCName.name, 'w') as configfile:
+        config.write(configfile)
+
+    # Simple configuration without CSR in configuration (will be passed as argument)
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
+
+    cnameCSR = domain_csr
+    config.remove_option("acmednstiny", "CSRFile")
+
+    goodCNameWithoutCSR = NamedTemporaryFile(delete=False)
+    with open(goodCNameWithoutCSR.name, 'w') as configfile:
+        config.write(configfile)
+
+    # Configuration with CSR containing a wildcard domain
+    account_key, domain_key, domain_csr, config = generate_config();
+
     Popen(["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", domain_key,
-           "-subj", "/CN=*.{0}".format(DOMAIN), "-out", wilddomain_csr.name]).wait()
+           "-subj", "/CN=*.{0}".format(DOMAIN), "-out", domain_csr]).wait()
+    os.remove(domain_key)
 
-    # weak 1024 bit account key
-    weak_key = NamedTemporaryFile(delete=False)
-    Popen(["openssl", "genrsa", "-out", weak_key.name, "1024"]).wait()
+    wildCName = NamedTemporaryFile(delete=False)
+    with open(wildCName.name, 'w') as configfile:
+        config.write(configfile)
 
-    # CSR using subject alt-name domain instead of CN (common name)
-    san_csr = NamedTemporaryFile(delete=False)
+    # Configuration with IP as DNS Host
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
+
+    config["DNS"]["Host"] = DNSHOSTIP
+
+    dnsHostIP = NamedTemporaryFile(delete=False)
+    with open(dnsHostIP.name, 'w') as configfile:
+        config.write(configfile)
+
+    # Configuration with CSR using subject alt-name domain instead of CN (common name)
+    account_key, domain_key, domain_csr, config = generate_config();
+
     san_conf = NamedTemporaryFile(delete=False)
-    san_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
+    with open("/etc/ssl/openssl.cnf", 'r') as opensslcnf:
+        san_conf.write(opensslcnf.read().encode("utf8"))
     san_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:www.{0}\n".format(DOMAIN).encode("utf8"))
     san_conf.seek(0)
     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key,
         "-subj", "/", "-reqexts", "SAN", "-config", san_conf.name,
-        "-out", san_csr.name]).wait()
+        "-out", domain_csr]).wait()
+    os.remove(san_conf.name)
+    os.remove(domain_key)
 
-    # CSR using wildcard in subject alt-name domain
-    wildsan_csr = NamedTemporaryFile(delete=False)
+    goodSAN = NamedTemporaryFile(delete=False)
+    with open(goodSAN.name, 'w') as configfile:
+        config.write(configfile)
+
+
+    # Configuration with CSR containing a wildcard domain inside subjetcAltName
+    account_key, domain_key, domain_csr, config = generate_config();
+
     wildsan_conf = NamedTemporaryFile(delete=False)
-    wildsan_conf.write(open("/etc/ssl/openssl.cnf").read().encode("utf8"))
+    with open("/etc/ssl/openssl.cnf", 'r') as opensslcnf:
+        wildsan_conf.write(opensslcnf.read().encode("utf8"))
     wildsan_conf.write("\n[SAN]\nsubjectAltName=DNS:{0},DNS:*.{0}\n".format(DOMAIN).encode("utf8"))
     wildsan_conf.seek(0)
     Popen(["openssl", "req", "-new", "-sha256", "-key", domain_key,
            "-subj", "/", "-reqexts", "SAN", "-config", wildsan_conf.name,
-           "-out", wildsan_csr.name]).wait()
-
-    # CSR signed with the account key
-    account_csr = NamedTemporaryFile(delete=False)
-    Popen(["openssl", "req", "-new", "-sha256", "-key", account_key,
-        "-subj", "/CN={0}".format(DOMAIN), "-out", account_csr.name]).wait()
-
-    # Create config parser from the good default config to generate custom configs
-    config = configparser.ConfigParser()
-    config.read(goodCName)
-
-    goodCNameWithoutCSR = NamedTemporaryFile(delete=False)
-    config.remove_option("acmednstiny", "CSRFile")
-    with open(goodCNameWithoutCSR.name, 'w') as configfile:
-        config.write(configfile)
-
-    wildCName = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["CSRFile"] = wilddomain_csr.name
-    with open(wildCName.name, 'w') as configfile:
-        config.write(configfile)
-
-    dnsHostIP = NamedTemporaryFile(delete=False)
-    config["DNS"]["Host"] = DNSHOSTIP
-    with open(dnsHostIP.name, 'w') as configfile:
-        config.write(configfile)
-    config["DNS"]["Host"] = DNSHOST
-
-    goodSAN = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["CSRFile"] = san_csr.name
-    with open(goodSAN.name, 'w') as configfile:
-        config.write(configfile)
+           "-out", domain_csr]).wait()
+    os.remove(wildsan_conf.name)
+    os.remove(domain_key)
 
     wildSAN = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["CSRFile"] = wildsan_csr.name
     with open(wildSAN.name, 'w') as configfile:
         config.write(configfile)
 
+    # Bad configuration with weak 1024 bit account key
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
+
+    Popen(["openssl", "genrsa", "-out", account_key, "1024"]).wait()
+
     weakKey = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = weak_key.name
-    config["acmednstiny"]["CSRFile"] = domain_csr
     with open(weakKey.name, 'w') as configfile:
         config.write(configfile)
 
+    # Bad configuration with account key as domain key
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
+
+    # Create a new CSR signed with the account key instead of domain key
+    Popen(["openssl", "req", "-new", "-sha256", "-key", account_key,
+        "-subj", "/CN={0}".format(DOMAIN), "-out", domain_csr]).wait()
+
     accountAsDomain = NamedTemporaryFile(delete=False)
-    config["acmednstiny"]["AccountKeyFile"] = account_key
-    config["acmednstiny"]["CSRFile"] = account_csr.name
     with open(accountAsDomain.name, 'w') as configfile:
         config.write(configfile)
+
+    # Create config parser from the good default config to generate custom configs
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
 
     invalidTSIGName = NamedTemporaryFile(delete=False)
     config["TSIGKeyring"]["KeyName"] = "{0}.invalid".format(TSIGKEYNAME)
     with open(invalidTSIGName.name, 'w') as configfile:
         config.write(configfile)
+
+    # Create config parser from the good default config to generate custom configs
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
 
     missingDNS = NamedTemporaryFile(delete=False)
     config["DNS"] = {}
@@ -140,7 +169,7 @@ def generate_acme_dns_tiny_config():
 
     return {
         # configs
-        "goodCName": goodCName,
+        "goodCName": goodCName.name,
         "goodCNameWithoutCSR": goodCNameWithoutCSR.name,
         "wildCName": wildCName.name,
         "dnsHostIP": dnsHostIP.name,
@@ -150,9 +179,7 @@ def generate_acme_dns_tiny_config():
         "accountAsDomain": accountAsDomain.name,
         "invalidTSIGName": invalidTSIGName.name,
         "missingDNS": missingDNS.name,
-        # key (just to simply remove the account from staging server)
-        "accountkey": account_key,
-        # CName CSR file to use with goodCNameWithoutCSR
+        # CName CSR file to use with goodCNameWithoutCSR as argument
         "cnameCSR": domain_csr,
     }
 
@@ -160,14 +187,19 @@ def generate_acme_dns_tiny_config():
 def generate_acme_account_rollover_config():
     # Old account is directly created by the config generator
     old_account_key, domain_key, domain_csr, config = generate_config()
+    os.remove(domain_key)
 
     # New account key
     new_account_key = NamedTemporaryFile(delete=False)
     Popen(["openssl", "genrsa", "-out", new_account_key.name, "2048"]).wait()
 
+    rolloverAccount = NamedTemporaryFile(delete=False)
+    with open(rolloverAccount.name, 'w') as configfile:
+        config.write(configfile)
+
     return {
         # config and keys (returned to keep files on system)
-        "config": config,
+        "config": rolloverAccount.name,
         "oldaccountkey": old_account_key,
         "newaccountkey": new_account_key.name
     }
@@ -176,8 +208,13 @@ def generate_acme_account_rollover_config():
 def generate_acme_account_deactivate_config():
     # Account key is created by the by the config generator
     account_key, domain_key, domain_csr, config = generate_config()
+    os.remove(domain_key)
+
+    deactivateAccount = NamedTemporaryFile(delete=False)
+    with open(deactivateAccount.name, 'w') as configfile:
+        config.write(configfile)
 
     return {
-        "config": config,
+        "config": deactivateAccount.name,
         "key": account_key
     }

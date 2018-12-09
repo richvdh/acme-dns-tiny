@@ -6,12 +6,12 @@ LOGGER = logging.getLogger('acme_dns_tiny')
 LOGGER.addHandler(logging.StreamHandler())
 
 def get_crt(config, log=LOGGER):
-    # helper function base64 encode as defined in acme spec
     def _b64(b):
+        """"Encodes string as base64 as specified in ACME RFC """
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
 
-    # helper function to run openssl command
     def _openssl(command, options, communicate=None):
+        """Run openssl command line and raise IOError on non-zero return."""
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
@@ -19,22 +19,25 @@ def get_crt(config, log=LOGGER):
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
-    # helper function to send DNS dynamic update messages
     def _update_dns(rrset, action):
+        """Updates DNS resource by adding or deleting resource."""
         algorithm = dns.name.from_text("{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
         dns_update = dns.update.Update(config["DNS"]["zone"], keyring=keyring, keyalgorithm=algorithm)
         if action == "add":
             dns_update.add(rrset.name, rrset)
         elif action == "delete":
             dns_update.delete(rrset.name, rrset)
-        resp = dns.query.tcp(dns_update, config["DNS"]["Host"], port=config.getint("DNS", "Port"))
+        response = dns.query.tcp(dns_update, config["DNS"]["Host"], port=config.getint("DNS", "Port"))
         dns_update = None
-        return resp
+        return response
 
-    # helper function to send signed requests
     def _send_signed_request(url, payload):
+        """Sends signed requests to ACME server."""
         nonlocal jws_nonce
-        payload64 = _b64(json.dumps(payload).encode("utf8"))
+        if payload == "": # on POST-as-GET, final payload has to be just empty string
+            payload64 = ""
+        else:
+            payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
         protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
         protected["url"] = url
@@ -49,18 +52,18 @@ def get_crt(config, log=LOGGER):
             "protected": protected64, "payload": payload64,"signature": _b64(signature)
         }
         try:
-            resp = requests.post(url, json=jose, headers=joseheaders)
+            response = requests.post(url, json=jose, headers=joseheaders)
         except requests.exceptions.RequestException as error:
-            resp = error.response
+            response = error.response
         finally:
-            jws_nonce = resp.headers['Replay-Nonce']
-            if resp.text != '':
-                return resp.status_code, resp.json(), resp.headers
-            else:
-                return resp.status_code, json.dumps({}), resp.headers
+            jws_nonce = response.headers['Replay-Nonce']
+            try:
+                return response, response.json()
+            except ValueError as error:
+                return response, json.dumps({})
 
     # main code
-    adtheaders =  {'User-Agent': 'acme-dns-tiny/2.0',
+    adtheaders =  {'User-Agent': 'acme-dns-tiny/2.1',
         'Accept-Language': config["acmednstiny"].get("Language", "en")
     }
     joseheaders=copy.deepcopy(adtheaders)
@@ -102,13 +105,13 @@ def get_crt(config, log=LOGGER):
         "kid": None,
     }
     accountkey_json = json.dumps(jws_header["jwk"], sort_keys=True, separators=(",", ":"))
-    thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
+    jwk_thumbprint = _b64(hashlib.sha256(accountkey_json.encode("utf8")).digest())
     jws_nonce = None
 
     log.info("Read CSR to find domains to validate.")
     csr = _openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-noout", "-text"]).decode("utf8")
-    domains = set([])
-    common_name = re.search(r"Subject:\s*?CN\s*?=\s*?([^\s,;/]+)", csr)
+    domains = set()
+    common_name = re.search(r"Subject:.*?\s+?CN\s*?=\s*?([^\s,;/]+)", csr)
     if common_name is not None:
         domains.add(common_name.group(1))
     subject_alt_names = re.search(r"X509v3 Subject Alternative Name: \r?\n +([^\r\n]+)\r?\n", csr, re.MULTILINE | re.DOTALL)
@@ -128,60 +131,58 @@ def get_crt(config, log=LOGGER):
     if account_request["contact"] == "":
         del account_request["contact"]
 
-    code, result, headers = _send_signed_request(acme_config["newAccount"], account_request)
-    account_info = {}
-    if code == 201:
-        jws_header["kid"] = headers['Location']
+    http_response, account_info = _send_signed_request(acme_config["newAccount"], account_request)
+    if http_response.status_code == 201:
+        jws_header["kid"] = http_response.headers['Location']
         log.info("  - Registered a new account: '{0}'".format(jws_header["kid"]))
-        account_info = result
-    elif code == 200:
-        jws_header["kid"] = headers['Location']
+    elif http_response.status_code == 200:
+        jws_header["kid"] = http_response.headers['Location']
         log.debug("  - Account is already registered: '{0}'".format(jws_header["kid"]))
 
-        code, result, headers = _send_signed_request(jws_header["kid"], {})
-        account_info = result
+        http_response, account_info = _send_signed_request(jws_header["kid"], {})
     else:
-        raise ValueError("Error registering account: {0} {1}".format(code, result))
+        raise ValueError("Error registering account: {0} {1}".format(http_response.status_code, account_info))
 
     log.info("Update contact information if needed.")
     if (set(account_request["contact"]) != set(account_info["contact"])):
-        code, result, headers = _send_signed_request(jws_header["kid"], account_request)
-        if code == 200:
+        http_response, result = _send_signed_request(jws_header["kid"], account_request)
+        if http_response.status_code == 200:
             log.debug("  - Account updated with latest contact informations.")
         else:
-            raise ValueError("Error registering updates for the account: {0} {1}".format(code, result))
+            raise ValueError("Error registering updates for the account: {0} {1}".format(http_response.status_code, result))
 
     # new order
     log.info("Request to the ACME server an order to validate domains.")
     new_order = { "identifiers": [{"type": "dns", "value": domain} for domain in domains]}
-    code, result, headers = _send_signed_request(acme_config["newOrder"], new_order)
-    order = result
-    if code == 201:
-        order_location = headers['Location']
+    http_response, order = _send_signed_request(acme_config["newOrder"], new_order)
+    if http_response.status_code == 201:
+        order_location = http_response.headers['Location']
         log.debug("  - Order received: {0}".format(order_location))
-        if order["status"] != "pending":
-            raise ValueError("Order status is not pending, we can't use it: {0}".format(order))
-    elif (code == 403
+        if order["status"] != "pending" and order["status"] != "ready":
+            raise ValueError("Order status is neither pending neither ready, we can't use it: {0}".format(order))
+    elif (http_response.status_code == 403
         and order["type"] == "urn:ietf:params:acme:error:userActionRequired"):
-        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], headers['Link'], order["instance"]))
+        raise ValueError("Order creation failed ({0}). Read Terms of Service ({1}), then follow your CA instructions: {2}".format(order["detail"], http_response.headers['Link'], order["instance"]))
     else:
-        raise ValueError("Error getting new Order: {0} {1}".format(code, result))
+        raise ValueError("Error getting new Order: {0} {1}".format(http_response.status_code, result))
 
     # complete each authorization challenge
     for authz in order["authorizations"]:
-        log.info("Process challenge for authorization: {0}".format(authz))
+        if order["status"] == "ready":
+            log.info("No challenge to process: order is already ready.")
+            break;
 
+        log.info("Process challenge for authorization: {0}".format(authz))
         # get new challenge
-        resp = requests.get(authz, headers=adtheaders)
-        authorization = resp.json()
-        if resp.status_code != 200:
-            raise ValueError("Error fetching challenges: {0} {1}".format(resp.status_code, authorization))
+        http_response, authorization = _send_signed_request(authz, "")
+        if http_response.status_code != 200:
+            raise ValueError("Error fetching challenges: {0} {1}".format(http_response.status_code, authorization))
         domain = authorization["identifier"]["value"]
 
         log.info("Install DNS TXT resource for domain: {0}".format(domain))
         challenge = [c for c in authorization["challenges"] if c["type"] == "dns-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge["token"])
-        keyauthorization = "{0}.{1}".format(token, thumbprint)
+        keyauthorization = "{0}.{1}".format(token, jwk_thumbprint)
         keydigest64 = _b64(hashlib.sha256(keyauthorization.encode("utf8")).digest())
         dnsrr_domain = "_acme-challenge.{0}.".format(domain)
         try: # a CNAME resource can be used for advanced TSIG configuration
@@ -216,17 +217,15 @@ def get_crt(config, log=LOGGER):
                     time.sleep(config["DNS"].getint("TTL"))
 
         log.info("Asking ACME server to validate challenge.")
-        code, result, headers = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
-        if code != 200:
-            raise ValueError("Error triggering challenge: {0} {1}".format(code, result))
+        http_response, result = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
+        if http_response.status_code != 200:
+            raise ValueError("Error triggering challenge: {0} {1}".format(http_response.status_code, result))
         try:
             while True:
-                try:
-                    resp = requests.get(challenge["url"], headers=adtheaders)
-                    challenge_status = resp.json()
-                except requests.exceptions.RequestException as error:
+                http_response, challenge_status = _send_signed_request(challenge["url"], "")
+                if http_response.status_code != 200:
                     raise ValueError("Error during challenge validation: {0} {1}".format(
-                        error.response.status_code, error.response.text()))
+                        http_response.status_code, challenge_status))
                 if challenge_status["status"] == "pending":
                     time.sleep(2)
                 elif challenge_status["status"] == "valid":
@@ -239,42 +238,36 @@ def get_crt(config, log=LOGGER):
             _update_dns(dnsrr_set, "delete")
 
     log.info("Request to finalize the order (all chalenge have been completed)")
-    resp = requests.get(order_location, headers=adtheaders)
-    finalize = resp.json()
     csr_der = _b64(_openssl("req", ["-in", config["acmednstiny"]["CSRFile"], "-outform", "DER"]))
-    code, result, headers = _send_signed_request(order["finalize"], {"csr": csr_der})
-    if code != 200:
-        raise ValueError("Error while sending the CSR: {0} {1}".format(code, result))
+    http_response, result = _send_signed_request(order["finalize"], {"csr": csr_der})
+    if http_response.status_code != 200:
+        raise ValueError("Error while sending the CSR: {0} {1}".format(http_response.status_code, result))
 
     while True:
-        try:
-            resp = requests.get(order_location, headers=adtheaders)
-            resp.raise_for_status()
-            finalize = resp.json()
-        except requests.exceptions.RequestException as error:
-            raise ValueError("Error finalizing order: {0} {1}".format(
-                error.response.status_code, error.response.text()))
+        http_response, order = _send_signed_request(order_location, "")
 
-        if finalize["status"] == "processing":
-            if resp.headers["Retry-After"]:
-                time.sleep(resp.headers["Retry-After"])
+        if order["status"] == "processing":
+            if http_response.headers["Retry-After"]:
+                time.sleep(http_response.headers["Retry-After"])
             else:
                 time.sleep(2)
-        elif finalize["status"] == "valid":
+        elif order["status"] == "valid":
             log.info("Order finalized!")
             break
         else:
             raise ValueError("Finalizing order {0} got errors: {1}".format(
-                domain, finalize))
+                domain, order))
     
-    resp = requests.get(finalize["certificate"], headers=adtheaders)
-    if resp.status_code != 200:
-        raise ValueError("Finalizing order {0} got errors: {1}".format(
-            resp.status_code, resp.json()))
-    certchain = resp.text
-    
-    log.info("Certificate signed and chain received: {0}".format(finalize["certificate"]))
-    return certchain
+    joseheaders['Accept'] = config["acmednstiny"].get("CertificateFormat", 'application/pem-certificate-chain')
+    http_response, result = _send_signed_request(order["certificate"], "")
+    if http_response.status_code != 200:
+        raise ValueError("Finalizing order {0} got errors: {1}".format(http_response.status_code, result))
+
+    if 'link' in http_response.headers:
+        log.info("  - Certificate links given by server: {0}", http_response.headers['link'])
+
+    log.info("Certificate signed and chain received: {0}".format(order["certificate"]))
+    return http_response.text
 
 def main(argv):
     parser = argparse.ArgumentParser(

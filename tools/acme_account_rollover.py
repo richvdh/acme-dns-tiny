@@ -4,13 +4,13 @@ import sys, argparse, subprocess, json, base64, binascii, re, copy, logging, req
 LOGGER = logging.getLogger("acme_account_rollover")
 LOGGER.addHandler(logging.StreamHandler())
 
-def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOGGER):
-    # helper function base64 encode as defined in acme spec
+def account_rollover(old_accountkeypath, new_accountkeypath, acme_directory, log=LOGGER):
     def _b64(b):
+        """"Encodes string as base64 as specified in ACME RFC """
         return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
 
-    # helper function to run openssl command
     def _openssl(command, options, communicate=None):
+        """Run openssl command line and raise IOError on non-zero return."""
         openssl = subprocess.Popen(["openssl", command] + options,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = openssl.communicate(communicate)
@@ -18,8 +18,8 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
             raise IOError("OpenSSL Error: {0}".format(err))
         return out
 
-    # helper function to get jws_header from account key path
     def _jws_header(accountkeypath):
+        """Creates a JWS header according to a specific account key path."""
         accountkey = _openssl("rsa", ["-in", accountkeypath, "-noout", "-text"])
         pub_hex, pub_exp = re.search(
             r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
@@ -37,20 +37,25 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         }
         return jws_header
 
-    # helper function to sign request with specified key path
-    def _sign_request(url, keypath, payload):
+    def _sign_request(url, keypath, payload, is_inner = False):
+        """Signs request with a specific right account key."""
         nonlocal jws_nonce
-        payload64 = _b64(json.dumps(payload).encode("utf8"))
-        if keypath == accountkeypath:
-            protected = copy.deepcopy(jws_header)
-            protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
-        elif keypath == new_accountkeypath:
+        if payload == "": # on POST-as-GET, final payload has to be just empty string
+            payload64 = ""
+        else:
+            payload64 = _b64(json.dumps(payload).encode("utf8"))
+        if keypath == new_accountkeypath:
             protected = copy.deepcopy(new_jws_header)
-        if (keypath == new_accountkeypath
-            or url == acme_config["newAccount"]):
+        elif keypath == old_accountkeypath:
+            protected = copy.deepcopy(old_jws_header)
+
+        if is_inner or url == acme_config["newAccount"]:
             del protected["kid"]
         else:
             del protected["jwk"]
+
+        if not is_inner:
+            protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
         protected["url"] = url
         protected64 = _b64(json.dumps(protected).encode("utf8"))
         signature = _openssl("dgst", ["-sha256", "-sign", keypath],
@@ -60,20 +65,20 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
         }
         return signedjws
 
-    # helper function make signed requests
     def _send_signed_request(url, keypath, payload):
+        """Sends signed requests to ACME server."""
         nonlocal jws_nonce
-        jws = _sign_request(url, keypath, payload)
+        jose = _sign_request(url, keypath, payload)
         try:
-            resp = requests.post(url, json=jws, headers=joseheaders)
+            response = requests.post(url, json=jose, headers=joseheaders)
         except requests.exceptions.RequestException as error:
-            resp = error.response
+            response = error.response
         finally:
-            jws_nonce = resp.headers['Replay-Nonce']
-            if resp.text != '':
-                return resp.status_code, resp.json(), resp.headers
-            else:
-                return resp.status_code, json.dumps({}), resp.headers
+            jws_nonce = response.headers['Replay-Nonce']
+            try:
+                return response, response.json()
+            except ValueError as error:
+                return response, json.dumps({})
 
     # main code
     adtheaders =  {'User-Agent': 'acme-dns-tiny/2.0'}
@@ -85,29 +90,37 @@ def account_rollover(accountkeypath, new_accountkeypath, acme_directory, log=LOG
     acme_config = directory.json()
 
     log.info("Parsing current account key...")
-    jws_header = _jws_header(accountkeypath)
+    old_jws_header = _jws_header(old_accountkeypath)
 
     log.info("Parsing new account key...")
     new_jws_header = _jws_header(new_accountkeypath)
+    del new_jws_header["kid"]
 
     jws_nonce = None
 
     log.info("Ask CA provider account url.")
-    code, result, headers = _send_signed_request(acme_config["newAccount"], accountkeypath, {
+    http_response, result = _send_signed_request(acme_config["newAccount"], old_accountkeypath, {
         "onlyReturnExisting": True })
-    if code == 200:
-        jws_header["kid"] = headers["Location"]
+    if http_response.status_code == 200:
+        old_jws_header["kid"] = http_response.headers["Location"]
+        new_jws_header["kid"] = http_response.headers["Location"]
     else:
-        raise ValueError("Error looking or account URL: {0} {1}".format(code, result))
+        raise ValueError("Error looking or account URL: {0} {1}".format(http_response.status_code, result))
 
     log.info("Rolls over account key...")
-    outer_payload = _sign_request(jws_header["kid"], new_accountkeypath, {
-        "account": jws_header["kid"],
-        "newKey": new_jws_header["jwk"] })
-    code, result, headers = _send_signed_request(jws_header["kid"], accountkeypath, outer_payload)
+    # The signature by the new key covers the account URL and the old key,
+    # signifying a request by the new key holder to take over the account from
+    # the old key holder.
+    inner_payload = _sign_request(acme_config["keyChange"], new_accountkeypath, {
+        "account": old_jws_header["kid"],
+        "oldKey": old_jws_header["jwk"] },
+        is_inner = True)
+    # The signature by the old key covers this request and its signature, and
+    # indicates the old key holder's assent to the roll-over request.
+    http_response, result  = _send_signed_request(acme_config["keyChange"], old_accountkeypath, inner_payload)
 
-    if code != 200:
-        raise ValueError("Error rolling over account key: {0} {1}".format(code, result))
+    if http_response.status_code != 200:
+        raise ValueError("Error rolling over account key: {0} {1}".format(http_response.status_code, result))
     log.info("Account keys rolled over !")
 
 def main(argv):

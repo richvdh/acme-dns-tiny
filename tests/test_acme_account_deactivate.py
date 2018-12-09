@@ -1,4 +1,4 @@
-import unittest, os, time
+import unittest, os, time, configparser
 import acme_dns_tiny
 from tests.config_factory import generate_acme_account_deactivate_config
 import tools.acme_account_deactivate
@@ -23,8 +23,14 @@ class TestACMEAccountDeactivate(unittest.TestCase):
     @classmethod
     def tearDownClass(self):
         # Remove temporary files
-        os.remove(self.configs['config'])
-        os.remove(self.configs['key'])
+        parser = configparser.ConfigParser()
+        parser.read(self.configs['config'])
+        try:
+            os.remove(parser["acmednstiny"]["AccountKeyFile"])
+            os.remove(parser["acmednstiny"]["CSRFile"])
+            os.remove(self.configs['config'])
+        except:
+            pass
         super(TestACMEAccountDeactivate, self).tearDownClass()
 
     def test_success_account_deactivate(self):
