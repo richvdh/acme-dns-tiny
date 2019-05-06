@@ -58,6 +58,16 @@ def generate_acme_dns_tiny_config():
     with open(goodCName.name, 'w') as configfile:
         config.write(configfile)
 
+    # Simple configuration with good options, without contacts field
+    account_key, domain_key, domain_csr, config = generate_config();
+    os.remove(domain_key)
+
+    config.remove_option("acmednstiny", "Contacts")
+
+    goodCNameWithoutContacts = NamedTemporaryFile(delete=False)
+    with open(goodCNameWithoutContacts.name, 'w') as configfile:
+        config.write(configfile)
+
     # Simple configuration without CSR in configuration (will be passed as argument)
     account_key, domain_key, domain_csr, config = generate_config();
     os.remove(domain_key)
@@ -170,6 +180,7 @@ def generate_acme_dns_tiny_config():
     return {
         # configs
         "goodCName": goodCName.name,
+        "goodCNameWithoutContacts": goodCNameWithoutContacts.name,
         "goodCNameWithoutCSR": goodCNameWithoutCSR.name,
         "wildCName": wildCName.name,
         "dnsHostIP": dnsHostIP.name,
