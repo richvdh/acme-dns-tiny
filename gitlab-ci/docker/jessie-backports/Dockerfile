@@ -4,11 +4,11 @@ RUN apt-get update
 RUN apt-get upgrade -y
 
 # Minimal tools required by acme-dns-tiny CI
-RUN apt-get install -y \
+RUN apt-get install -y --no-install-recommends \
 	python3-coverage \
 	python3-pip
 
-RUN apt-get install -y \
+RUN apt-get install -y --no-install-recommends \
 	-t jessie-backports \
 	python3-configargparse \
 	python3-dnspython
