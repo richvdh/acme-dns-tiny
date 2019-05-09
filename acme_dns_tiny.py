@@ -128,7 +128,7 @@ def get_crt(config, log=LOGGER):
         account_request["termsOfServiceAgreed"] = True
         log.warning("Terms of service exists and will be automatically agreed, please read them: {0}".format(terms_service))
     account_request["contact"] = config["acmednstiny"].get("Contacts", "").split(';')
-    if account_request["contact"] == "":
+    if account_request["contact"] == [""]:
         del account_request["contact"]
 
     http_response, account_info = _send_signed_request(acme_config["newAccount"], account_request)
@@ -144,7 +144,7 @@ def get_crt(config, log=LOGGER):
         raise ValueError("Error registering account: {0} {1}".format(http_response.status_code, account_info))
 
     log.info("Update contact information if needed.")
-    if (set(account_request["contact"]) != set(account_info["contact"])):
+    if ("contact" in account_request and set(account_request["contact"]) != set(account_info["contact"])):
         http_response, result = _send_signed_request(jws_header["kid"], account_request)
         if http_response.status_code == 200:
             log.debug("  - Account updated with latest contact informations.")
@@ -257,14 +257,14 @@ def get_crt(config, log=LOGGER):
         else:
             raise ValueError("Finalizing order {0} got errors: {1}".format(
                 domain, order))
-    
+
     joseheaders['Accept'] = config["acmednstiny"].get("CertificateFormat", 'application/pem-certificate-chain')
     http_response, result = _send_signed_request(order["certificate"], "")
     if http_response.status_code != 200:
         raise ValueError("Finalizing order {0} got errors: {1}".format(http_response.status_code, result))
 
     if 'link' in http_response.headers:
-        log.info("  - Certificate links given by server: {0}", http_response.headers['link'])
+        log.info("  - Certificate links given by server: {0}".format(http_response.headers['link']))
 
     log.info("Certificate signed and chain received: {0}".format(order["certificate"]))
     return http_response.text

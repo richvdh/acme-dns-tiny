@@ -71,6 +71,19 @@ class TestACMEDNSTiny(unittest.TestCase):
         
         self.assertCertificateChain(certchain)
 
+    def test_success_cn_without_contacts(self):
+        """ Successfully issue a certificate via CN, but without Contacts field """
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+
+        acme_dns_tiny.main([self.configs['goodCNameWithoutContacts'], "--verbose"])
+        certchain = sys.stdout.getvalue()
+
+        sys.stdout.close()
+        sys.stdout = old_stdout
+
+        self.assertCertificateChain(certchain)
+
     def test_success_cn_with_csr_option(self):
         """ Successfully issue a certificate using CSR option outside from the config file"""
         old_stdout = sys.stdout
