@@ -179,18 +179,18 @@ def get_crt(config, log=LOGGER):
             raise ValueError("Error fetching challenges: {0} {1}".format(http_response.status_code, authorization))
         domain = authorization["identifier"]["value"]
 
-        log.info("Install DNS TXT resource for domain: {0}".format(domain))
+        log.info("Fulfil that challenge by adding DNS TXT resource on the domain: {0}".format(domain))
         challenge = [c for c in authorization["challenges"] if c["type"] == "dns-01"][0]
         token = re.sub(r"[^A-Za-z0-9_\-]", "_", challenge["token"])
         keyauthorization = "{0}.{1}".format(token, jwk_thumbprint)
         keydigest64 = _b64(hashlib.sha256(keyauthorization.encode("utf8")).digest())
         dnsrr_domain = "_acme-challenge.{0}.".format(domain)
-        try: # a CNAME resource can be used for advanced TSIG configuration
-            # Note: the CNAME target has to be of "non-CNAME" type to be able to add TXT records aside it
+        try: # one CNAME resource can be used for advanced TSIG configuration
+            # As acme-dns-tiny doesn't do recursive requests, the target has to be a "non-CNAME" to be able to add TXT resource to it
             dnsrr_domain = [response.to_text() for response in resolver.query(dnsrr_domain, rdtype="CNAME")][0]
-            log.info("  - A CNAME resource has been found for this domain, will install TXT on {0}".format(dnsrr_domain))
+            log.info("  - As this domain is a CNAME targeting the domain '{0}', the TXT resource will be added to that one.".format(dnsrr_domain))
         except dns.exception.DNSException as dnsexception:
-            log.debug("  - Not any CNAME resource has been found for this domain ({1}), will install TXT directly on {0}".format(dnsrr_domain, type(dnsexception).__name__))
+            log.debug("  - An exception occured while looking for CNAME target ({1}), the TXT resource will be added directly on the domain '{0}'.".format(dnsrr_domain, type(dnsexception).__name__))
         dnsrr_set = dns.rrset.from_text(dnsrr_domain, config["DNS"].getint("TTL"), "IN", "TXT",  '"{0}"'.format(keydigest64))
         try:
             _update_dns(dnsrr_set, "add")
@@ -216,10 +216,10 @@ def get_crt(config, log=LOGGER):
                     number_check_fail = number_check_fail + 1
                     time.sleep(config["DNS"].getint("TTL"))
 
-        log.info("Asking ACME server to validate challenge.")
+        log.info("Asking ACME server to validate the challenge.")
         http_response, result = _send_signed_request(challenge["url"], {"keyAuthorization": keyauthorization})
         if http_response.status_code != 200:
-            raise ValueError("Error triggering challenge: {0} {1}".format(http_response.status_code, result))
+            raise ValueError("Error triggering the challenge validation: {0} {1}".format(http_response.status_code, result))
         try:
             while True:
                 http_response, challenge_status = _send_signed_request(challenge["url"], "")
@@ -229,7 +229,7 @@ def get_crt(config, log=LOGGER):
                 if challenge_status["status"] == "pending":
                     time.sleep(2)
                 elif challenge_status["status"] == "valid":
-                    log.info("ACME has verified challenge for domain: {0}".format(domain))
+                    log.info("ACME has verified the challenge for domain: {0}".format(domain))
                     break
                 else:
                     raise ValueError("Challenge for domain {0} did not pass: {1}".format(
