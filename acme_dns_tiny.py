@@ -22,7 +22,7 @@ def get_crt(config, log=LOGGER):
     def _update_dns(rrset, action):
         """Updates DNS resource by adding or deleting resource."""
         algorithm = dns.name.from_text("{0}".format(config["TSIGKeyring"]["Algorithm"].lower()))
-        dns_update = dns.update.Update(config["DNS"]["zone"], keyring=keyring, keyalgorithm=algorithm)
+        dns_update = dns.update.Update(dns.resolver.zone_for_name(rrset.name), keyring=keyring, keyalgorithm=algorithm)
         if action == "add":
             dns_update.add(rrset.name, rrset)
         elif action == "delete":
