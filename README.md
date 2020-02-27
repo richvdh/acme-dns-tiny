@@ -1,6 +1,6 @@
 # acme-dns-tiny
 
-[![build status](https://projects.adorsaz.ch/adrien/acme-dns-tiny/badges/master/build.svg)](https://projects.adorsaz.ch/adrien/acme-dns-tiny/commits/master)
+[![pipeline status](https://projects.adorsaz.ch/adrien/acme-dns-tiny/badges/master/pipeline.svg)](https://projects.adorsaz.ch/adrien/acme-dns-tiny/commits/master)
 [![coverage status](https://projects.adorsaz.ch/adrien/acme-dns-tiny/badges/master/coverage.svg)](https://projects.adorsaz.ch/adrien/acme-dns-tiny/commits/master)
 
 This is a tiny, auditable script that you can throw on any secure machine to
