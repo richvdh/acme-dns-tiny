@@ -298,7 +298,7 @@ See example.ini file to configure correctly this script."""
 
     if (set(["accountkeyfile", "csrfile", "acmedirectory"]) - set(config.options("acmednstiny"))
         or set(["keyname", "keyvalue", "algorithm"]) - set(config.options("TSIGKeyring"))
-        or set(["zone", "host", "port", "ttl"]) - set(config.options("DNS"))):
+        or set(["host", "port", "ttl"]) - set(config.options("DNS"))):
         raise ValueError("Some required settings are missing.")
 
     LOGGER.setLevel(args.verbose or args.quiet or logging.INFO)
