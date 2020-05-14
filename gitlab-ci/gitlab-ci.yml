@@ -1,5 +1,6 @@
 jessie:
-  image: adt-jessie
+  tags:
+    - jessie
   before_script:
     - pip3 install --upgrade -r tests/requirements.txt
   script:
@@ -8,7 +9,8 @@ jessie:
     - coverage html
 
 stretch:
-  image: adt-stretch
+  tags:
+    - stretch
   before_script:
     - pip3 install --upgrade -r tests/requirements.txt
   script:
