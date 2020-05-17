@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#pylint: disable=multiple-imports
+"""Script to disable ACME account"""
+
 import sys, argparse, subprocess, json, base64, binascii, re, copy, logging, requests
 
 LOGGER = logging.getLogger("acme_account_deactivate")
@@ -26,7 +29,8 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
         else:
             payload64 = _b64(json.dumps(payload).encode("utf8"))
         protected = copy.deepcopy(jws_header)
-        protected["nonce"] = jws_nonce or requests.get(acme_config["newNonce"]).headers['Replay-Nonce']
+        protected["nonce"] = (jws_nonce
+                              or requests.get(acme_config["newNonce"]).headers['Replay-Nonce'])
         protected["url"] = url
         if url == acme_config["newAccount"]:
             del protected["kid"]
@@ -36,7 +40,7 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
         signature = _openssl("dgst", ["-sha256", "-sign", accountkeypath],
                              "{0}.{1}".format(protected64, payload64).encode("utf8"))
         jose = {
-            "protected": protected64, "payload": payload64,"signature": _b64(signature)
+            "protected": protected64, "payload": payload64, "signature": _b64(signature)
         }
         try:
             response = requests.post(url, json=jose, headers=joseheaders)
@@ -75,7 +79,7 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
         "kid": None,
     }
     jws_nonce = None
-    
+
     log.info("Ask CA provider account url.")
     account_request = {}
     account_request["onlyReturnExisting"] = True
@@ -84,7 +88,8 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
     if http_response.status_code == 200:
         jws_header["kid"] = http_response.headers['Location']
     else:
-        raise ValueError("Error looking or account URL: {0} {1}".format(http_response.status_code, result))
+        raise ValueError("Error looking or account URL: {0} {1}"
+                         .format(http_response.status_code, result))
 
     log.info("Deactivating account...")
     http_response, result = _send_signed_request(jws_header["kid"], {"status": "deactivated"})
@@ -92,7 +97,8 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
     if http_response.status_code == 200:
         log.info("Account key deactivated !")
     else:
-        raise ValueError("Error while deactivating the account key: {0} {1}".format(http_response.status_code, result))
+        raise ValueError("Error while deactivating the account key: {0} {1}"
+                         .format(http_response.status_code, result))
 
 def main(argv):
     parser = argparse.ArgumentParser(
@@ -107,10 +113,14 @@ It will need to access the ACME private account key, so PLEASE READ THROUGH IT!
 It's around 150 lines, so it won't take long.
 
 Example: deactivate account.key from staging Let's Encrypt:
-  python3 acme_account_deactivate.py --account-key account.key --acme-directory https://acme-staging-v02.api.letsencrypt.org/directory"""
+  python3 acme_account_deactivate.py \
+--account-key account.key \
+--acme-directory https://acme-staging-v02.api.letsencrypt.org/directory"""
     )
-    parser.add_argument("--account-key", required=True, help="path to the private account key to deactivate")
-    parser.add_argument("--acme-directory", required=True, help="ACME directory URL of the ACME server where to remove the key")
+    parser.add_argument("--account-key", required=True,
+                        help="path to the private account key to deactivate")
+    parser.add_argument("--acme-directory", required=True,
+                        help="ACME directory URL of the ACME server where to remove the key")
     parser.add_argument("--quiet", action="store_const",
                         const=logging.ERROR,
                         help="suppress output except for errors")
