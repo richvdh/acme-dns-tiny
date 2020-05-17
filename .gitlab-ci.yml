@@ -31,9 +31,9 @@ syntax:
 lint:
   extends: .check
   before_script:
-    - apt-get update && apt-get install -y --no-install-recommends pylint
+    - apt-get update && apt-get install -y --no-install-recommends pylint3
   script:
-    - pylint --disable=C0301 acme_dns_tiny.py tools/acme_account_deactivate.py tools/acme_account_rollover.py
+    - pylint3 --disable=C0301 acme_dns_tiny.py tools/acme_account_deactivate.py tools/acme_account_rollover.py
 
 jessie:
   extends: .test
