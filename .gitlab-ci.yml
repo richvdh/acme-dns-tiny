@@ -1,0 +1,51 @@
+stages:
+  - check
+  - test
+
+.check:
+  stage: check
+  image: debian:buster-slim
+  only:
+    - merge_requests
+    - master
+
+.test:
+  stage: test
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends python3-dnspython python3-configargparse python3-coverage
+  script:
+    - python3-coverage run --source ./ -m unittest -v tests.test_acme_dns_tiny tests.test_acme_account_rollover tests.test_acme_account_deactivate
+    - python3-coverage report --include=acme_dns_tiny.py,tools/acme_account_rollover.py,tools/acme_account_deactivate.py
+    - python3-coverage html
+  only:
+    - merge_requests
+    - master
+
+syntax:
+  extends: .check
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends python3
+  script:
+    - python3 -m py_compile acme_dns_tiny.py tools/acme_account_deactivate.py tools/acme_account_rollover.py
+
+lint:
+  extends: .check
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends pylint
+  script:
+    - pylint --disable=C0301 acme_dns_tiny.py tools/acme_account_deactivate.py tools/acme_account_rollover.py
+
+jessie:
+  extends: .test
+  image: debian:jessie-slim
+
+stretch:
+  extends: .test
+  image: debian:stretch-slim
+
+buster:
+  extends: .test
+  image: debian:buster-slim
+  artifacts:
+    paths:
+     - htmlcov
