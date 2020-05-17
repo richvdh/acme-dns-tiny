@@ -7,20 +7,40 @@ import sys, argparse, subprocess, json, base64, binascii, re, copy, logging, req
 LOGGER = logging.getLogger("acme_account_deactivate")
 LOGGER.addHandler(logging.StreamHandler())
 
+def _b64(text):
+    """"Encodes string as base64 as specified in ACME RFC."""
+    return base64.urlsafe_b64encode(text).decode("utf8").rstrip("=")
+
+def _openssl(command, options, communicate=None):
+    """Run openssl command line and raise IOError on non-zero return."""
+    openssl = subprocess.Popen(["openssl", command] + options,
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    out, err = openssl.communicate(communicate)
+    if openssl.returncode != 0:
+        raise IOError("OpenSSL Error: {0}".format(err))
+    return out
+
+def _jws_from_key(accountkeypath):
+    """Parses account key to create JWS header to authenticate user"""
+    accountkey = _openssl("rsa", ["-in", accountkeypath, "-noout", "-text"])
+    pub_hex, pub_exp = re.search(
+        r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
+        accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
+    pub_exp = "{0:x}".format(int(pub_exp))
+    pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
+    return {
+        "alg": "RS256",
+        "jwk": {
+            "e": _b64(binascii.unhexlify(pub_exp.encode("utf-8"))),
+            "kty": "RSA",
+            "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
+        },
+        "kid": None,
+    }
+
 def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
-    def _b64(b):
-        """"Encodes string as base64 as specified in ACME RFC """
-        return base64.urlsafe_b64encode(b).decode("utf8").rstrip("=")
-
-    def _openssl(command, options, communicate=None):
-        """Run openssl command line and raise IOError on non-zero return."""
-        openssl = subprocess.Popen(["openssl", command] + options,
-                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = openssl.communicate(communicate)
-        if openssl.returncode != 0:
-            raise IOError("OpenSSL Error: {0}".format(err))
-        return out
-
+    """Deactivate the ACME account"""
     def _send_signed_request(url, payload):
         """Sends signed requests to ACME server."""
         nonlocal jws_nonce
@@ -62,21 +82,7 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
     acme_config = directory.json()
 
     log.info("Parsing account key.")
-    accountkey = _openssl("rsa", ["-in", accountkeypath, "-noout", "-text"])
-    pub_hex, pub_exp = re.search(
-        r"modulus:\r?\n\s+00:([a-f0-9\:\s]+?)\r?\npublicExponent: ([0-9]+)",
-        accountkey.decode("utf8"), re.MULTILINE | re.DOTALL).groups()
-    pub_exp = "{0:x}".format(int(pub_exp))
-    pub_exp = "0{0}".format(pub_exp) if len(pub_exp) % 2 else pub_exp
-    jws_header = {
-        "alg": "RS256",
-        "jwk": {
-            "e": _b64(binascii.unhexlify(pub_exp.encode("utf-8"))),
-            "kty": "RSA",
-            "n": _b64(binascii.unhexlify(re.sub(r"(\s|:)", "", pub_hex).encode("utf-8"))),
-        },
-        "kid": None,
-    }
+    jws_header = _jws_from_key(accountkeypath)
     jws_nonce = None
 
     log.info("Ask CA provider account url.")
@@ -100,6 +106,7 @@ def account_deactivate(accountkeypath, acme_directory, log=LOGGER):
                          .format(http_response.status_code, result))
 
 def main(argv):
+    """Parse arguments and deactivate account"""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="Tiny ACME client to deactivate ACME account",
